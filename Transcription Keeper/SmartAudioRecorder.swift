@@ -69,6 +69,11 @@ class SmartAudioRecorder: NSObject {
 
     // MARK: - Public Methods
 
+    /// Whether monitoring audio levels (without recording)
+    var isMonitoring = false
+
+    private var monitorRecorder: AVAudioRecorder?
+
     /// Request microphone permission
     func requestPermission() async -> Bool {
         await withCheckedContinuation { continuation in
@@ -78,9 +83,88 @@ class SmartAudioRecorder: NSObject {
         }
     }
 
+    /// Start monitoring audio levels (for threshold preview, no recording)
+    func startMonitoring() {
+        guard !isMonitoring, !isSessionActive else { return }
+
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.playAndRecord, mode: .default)
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to set up audio session for monitoring: \(error)")
+            return
+        }
+
+        // Create a dummy recorder just for metering
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("monitor.m4a")
+        do {
+            monitorRecorder = try AVAudioRecorder(url: tempURL, settings: recordingSettings)
+            monitorRecorder?.isMeteringEnabled = true
+            monitorRecorder?.record()
+            isMonitoring = true
+            startMonitoringMeters()
+        } catch {
+            print("Failed to create monitor recorder: \(error)")
+        }
+    }
+
+    /// Stop monitoring audio levels
+    func stopMonitoring() {
+        guard isMonitoring else { return }
+
+        monitorRecorder?.stop()
+        monitorRecorder = nil
+        isMonitoring = false
+        stopMonitoringMeters()
+        currentLevel = 0
+
+        // Clean up temp file
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("monitor.m4a")
+        try? FileManager.default.removeItem(at: tempURL)
+
+        if !isSessionActive {
+            try? AVAudioSession.sharedInstance().setActive(false)
+        }
+    }
+
+    private func startMonitoringMeters() {
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateMonitorLevel()
+            }
+        }
+    }
+
+    private func stopMonitoringMeters() {
+        levelTimer?.invalidate()
+        levelTimer = nil
+    }
+
+    private func updateMonitorLevel() {
+        guard let recorder = monitorRecorder, isMonitoring else {
+            currentLevel = 0
+            return
+        }
+
+        recorder.updateMeters()
+        let dB = recorder.averagePower(forChannel: 0)
+
+        let minDB: Float = -50
+        let maxDB: Float = 0
+        let normalizedLevel = max(0, min(1, (dB - minDB) / (maxDB - minDB)))
+
+        currentLevel = normalizedLevel
+    }
+
     /// Start a recording session - listens for audio above threshold
     func startRecording() {
         errorMessage = nil
+
+        // Stop monitoring if active
+        if isMonitoring {
+            stopMonitoring()
+        }
 
         // Configure audio session
         let audioSession = AVAudioSession.sharedInstance()
@@ -104,15 +188,18 @@ class SmartAudioRecorder: NSObject {
             audioRecorder?.isMeteringEnabled = true
             audioRecorder?.delegate = self
 
-            // Prepare but don't start recording yet - wait for threshold
-            audioRecorder?.prepareToRecord()
-
-            isSessionActive = true
-            isCapturing = false
-            sessionDuration = 0
-            capturedDuration = 0
-            startMetering()
-            startDurationTimer()
+            // Start recording immediately (needed for metering to work)
+            // Record continuously, track time above threshold
+            if audioRecorder?.record() == true {
+                isSessionActive = true
+                isCapturing = false
+                sessionDuration = 0
+                capturedDuration = 0
+                startMetering()
+                startDurationTimer()
+            } else {
+                errorMessage = "Failed to start recording"
+            }
         } catch {
             errorMessage = "Failed to create recorder: \(error.localizedDescription)"
         }
@@ -125,9 +212,7 @@ class SmartAudioRecorder: NSObject {
         gracePeriodTimer?.invalidate()
         gracePeriodTimer = nil
 
-        if isCapturing {
-            audioRecorder?.stop()
-        }
+        audioRecorder?.stop()
 
         isSessionActive = false
         isCapturing = false
@@ -141,46 +226,9 @@ class SmartAudioRecorder: NSObject {
             print("Failed to deactivate audio session: \(error)")
         }
 
-        // Only return URL if we actually captured something
-        if capturedDuration > 0 {
-            return recordingURL
-        } else {
-            // Clean up empty file
-            if let url = recordingURL {
-                try? FileManager.default.removeItem(at: url)
-            }
-            return nil
-        }
-    }
-
-    /// Start capturing (when audio exceeds threshold)
-    private func startCapturing() {
-        guard !isCapturing, isSessionActive else { return }
-
-        gracePeriodTimer?.invalidate()
-        gracePeriodTimer = nil
-
-        if audioRecorder?.record() == true {
-            isCapturing = true
-        }
-    }
-
-    /// Stop capturing (when audio drops below threshold)
-    private func stopCapturing() {
-        guard isCapturing, isSessionActive else { return }
-
-        // Use grace period to avoid choppy recordings
-        gracePeriodTimer?.invalidate()
-        gracePeriodTimer = Timer.scheduledTimer(withTimeInterval: gracePeriod, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                guard let self = self, self.isSessionActive, self.isCapturing else { return }
-                // Check level again - maybe it came back up during grace period
-                if self.currentLevel < self.threshold {
-                    self.audioRecorder?.pause()
-                    self.isCapturing = false
-                }
-            }
-        }
+        // Return URL - recording contains full session
+        // capturedDuration shows how much was above threshold
+        return recordingURL
     }
 
     /// Get current audio level in decibels (for threshold comparison)
@@ -225,17 +273,26 @@ class SmartAudioRecorder: NSObject {
 
         currentLevel = normalizedLevel
 
-        // Threshold-based capture control
+        // Threshold-based capture tracking
         if normalizedLevel >= threshold {
             if !isCapturing {
-                startCapturing()
-            } else {
-                // Cancel any pending stop
-                gracePeriodTimer?.invalidate()
-                gracePeriodTimer = nil
+                isCapturing = true
             }
+            // Cancel any pending stop
+            gracePeriodTimer?.invalidate()
+            gracePeriodTimer = nil
         } else if isCapturing {
-            stopCapturing()
+            // Use grace period before marking as not capturing
+            if gracePeriodTimer == nil {
+                gracePeriodTimer = Timer.scheduledTimer(withTimeInterval: gracePeriod, repeats: false) { [weak self] _ in
+                    Task { @MainActor in
+                        guard let self = self, self.isSessionActive else { return }
+                        if self.currentLevel < self.threshold {
+                            self.isCapturing = false
+                        }
+                    }
+                }
+            }
         }
     }
 
