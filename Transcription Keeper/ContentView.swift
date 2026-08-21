@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var transcriptionService = TranscriptionService()
     @State private var hasPermission = false
     @State private var showingPermissionAlert = false
+    @State private var showingAbout = false
 
     // Results state
     @State private var lastRecordingURL: URL?
@@ -95,6 +96,19 @@ struct ContentView: View {
             if let url = lastRecordingURL {
                 ShareSheet(items: [url])
             }
+        }
+        .sheet(isPresented: $showingAbout) {
+            AboutView()
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                showingAbout = true
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
         }
     }
 
