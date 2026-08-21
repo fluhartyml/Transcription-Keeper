@@ -1,0 +1,4 @@
+# `docs/` is its own git repository (the app's GitHub Pages site). Adding it to
+# THIS repo makes it a gitlink, which a clone cannot resolve — caught 2026-08-21
+# when a `git add -A` swept it in.
+docs/
