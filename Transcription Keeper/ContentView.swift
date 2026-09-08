@@ -163,13 +163,18 @@ struct ContentView: View {
             AboutView()
         }
         // His report, 2026-09-08: "the (i) is too small and squished under the battery."
-        // Two faults in one control: a 22pt glyph with no touch target around it, pinned
-        // hard into the corner the status bar already owns.
+        // Then, after more padding: "top of the (i) circle is under the battery."
         //
-        // 44x44 is Apple's minimum touch target and the reason it is a minimum — this is
-        // an app operated by thumb, sometimes without looking. The extra top and trailing
-        // padding walks it out from under the battery.
-        .overlay(alignment: .topTrailing) {
+        // ⚠️ PADDING WAS THE WRONG TOOL. An overlay is positioned against the view's own
+        // bounds, which run up under the status bar, so clearing the battery meant guessing
+        // a number — and the number that works on one phone is wrong on the next, because
+        // the Dynamic Island is a different height from a notch and different again from
+        // neither.
+        //
+        // safeAreaInset places the button INSIDE the safe area by construction. It clears
+        // the status bar on every device without a magic number, and because it reserves
+        // its own row it cannot overlap anything below it either.
+        .safeAreaInset(edge: .top, alignment: .trailing, spacing: 0) {
             Button {
                 showingAbout = true
             } label: {
@@ -180,7 +185,6 @@ struct ContentView: View {
                     .contentShape(Circle())
             }
             .padding(.trailing, 14)
-            .padding(.top, 18)
         }
     }
 
