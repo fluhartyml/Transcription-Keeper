@@ -174,7 +174,14 @@ struct ContentView: View {
         VStack(spacing: 4) {
             Group {
                 if recorder.isSessionActive {
-                    counterText.foregroundStyle(counterColor)
+                    // ⚠️ SAME HEIGHT AS THE GLASS BRANCH, EXPLICITLY. Letting this one take
+                    // its intrinsic size made the two states differ by a few points, and
+                    // those points moved the button under his finger the moment a take
+                    // started. Reported twice — the second time as "on the push to talk the
+                    // counter makes the pt button slide down."
+                    counterText
+                        .foregroundStyle(counterColor)
+                        .frame(height: 58)
                 } else {
                     // Glass in the shape of the glyphs: the effect is masked BY the text,
                     // so the numerals themselves are the window rather than sitting on one.
@@ -185,13 +192,16 @@ struct ContentView: View {
                         .frame(height: 58)
                 }
             }
+            // Cross-fade only. An animation that resizes is an animation that moves
+            // the instrument, which is the whole fault being fixed here.
+            .frame(height: 58)
             .animation(.easeInOut(duration: 0.25), value: recorder.isSessionActive)
 
             Text("Session: \(formatDuration(recorder.sessionDuration))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .frame(height: 76)
+        .frame(height: 86)
         .frame(maxWidth: .infinity)
     }
 
