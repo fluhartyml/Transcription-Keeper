@@ -166,7 +166,7 @@ struct ContentView: View {
         return recorder.isSessionActive ? .red : .secondary
     }
 
-    private var durationDisplay: some View {
+    private var counterStack: some View {
         VStack(spacing: 4) {
             Text(formatDuration(recorder.capturedDuration))
                 .font(.system(size: 48, weight: .light, design: .monospaced))
@@ -177,6 +177,25 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(height: 76)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// His idea, 2026-09-08: "maybe a liquid glass untill the counter starts counting then
+    /// it gets color." Idle it is glass — present, readable, clearly not running. The
+    /// moment a take is being kept it takes on colour, so the state is legible from across
+    /// a room and without reading the digits. On an instrument that is the whole job of a
+    /// lamp: not what the number says, but whether it is live.
+    private var durationDisplay: some View {
+        Group {
+            if recorder.isSessionActive {
+                counterStack
+            } else {
+                counterStack
+                    .padding(.horizontal, 24)
+                    .glassEffect(in: .rect(cornerRadius: 22))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: recorder.isSessionActive)
     }
 
     // MARK: - Recording View
