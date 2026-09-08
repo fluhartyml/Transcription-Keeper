@@ -159,18 +159,33 @@ struct ContentView: View {
     // check BEFORE you start.
     // Reserving the height costs nothing and means the button is nailed to the glass.
     // An instrument you operate without looking cannot move while you are holding it.
-    /// Red only while a take is actually being kept. Idle and about-to-cancel both read
-    /// grey, so the colour answers one question: is this going into the record right now.
-    private var counterColor: Color {
-        if willCancel { return .secondary }
-        return recorder.isSessionActive ? .red : .secondary
-    }
-
+    /// The DIGITS are the glass, not a card behind them.
+    ///
+    /// Michael, 2026-09-08, correcting the first attempt: "i was describing the actual
+    /// numbers being glass almost clear not a card with the nubers zero because the card
+    /// dissapears and then the numbers turn red."
+    ///
+    /// The first version put a glass panel around the counter, so starting a take made a
+    /// whole card vanish — a second thing moving on screen at the exact moment he is
+    /// holding a button that cancels on movement. Now nothing appears or disappears.
+    /// The same numerals are always in the same place and only their MATERIAL changes:
+    /// near-clear glass at rest, solid colour once a take is being kept.
     private var counterStack: some View {
         VStack(spacing: 4) {
-            Text(formatDuration(recorder.capturedDuration))
-                .font(.system(size: 48, weight: .light, design: .monospaced))
-                .foregroundStyle(counterColor)
+            Group {
+                if recorder.isSessionActive {
+                    counterText.foregroundStyle(counterColor)
+                } else {
+                    // Glass in the shape of the glyphs: the effect is masked BY the text,
+                    // so the numerals themselves are the window rather than sitting on one.
+                    Rectangle()
+                        .fill(.clear)
+                        .glassEffect(in: .rect(cornerRadius: 0))
+                        .mask { counterText }
+                        .frame(height: 58)
+                }
+            }
+            .animation(.easeInOut(duration: 0.25), value: recorder.isSessionActive)
 
             Text("Session: \(formatDuration(recorder.sessionDuration))")
                 .font(.caption)
@@ -180,23 +195,18 @@ struct ContentView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// His idea, 2026-09-08: "maybe a liquid glass untill the counter starts counting then
-    /// it gets color." Idle it is glass — present, readable, clearly not running. The
-    /// moment a take is being kept it takes on colour, so the state is legible from across
-    /// a room and without reading the digits. On an instrument that is the whole job of a
-    /// lamp: not what the number says, but whether it is live.
-    private var durationDisplay: some View {
-        Group {
-            if recorder.isSessionActive {
-                counterStack
-            } else {
-                counterStack
-                    .padding(.horizontal, 24)
-                    .glassEffect(in: .rect(cornerRadius: 22))
-            }
-        }
-        .animation(.easeInOut(duration: 0.25), value: recorder.isSessionActive)
+    private var counterText: Text {
+        Text(formatDuration(recorder.capturedDuration))
+            .font(.system(size: 48, weight: .light, design: .monospaced))
     }
+
+    /// Red only while a take is actually being kept.
+    private var counterColor: Color {
+        if willCancel { return .secondary }
+        return recorder.isSessionActive ? .red : .secondary
+    }
+
+    private var durationDisplay: some View { counterStack }
 
     // MARK: - Recording View
 
