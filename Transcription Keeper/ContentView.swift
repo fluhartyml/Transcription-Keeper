@@ -23,7 +23,15 @@ struct ContentView: View {
     // shutter." It does, and the slider went with it on purpose — a threshold is the app
     // GUESSING when you meant to speak. Push to talk is you saying so. Once the finger is
     // the switch there is nothing left for a sensitivity control to decide.
+    /// Which instrument is on screen. Remembered between launches — a mode you have to
+    /// re-pick every time is a mode you stop using.
+    @AppStorage("usePushToTalk") private var usePushToTalk = true
+
     @State private var isTalking = false
+
+    /// Squelch's setting, held while push to talk borrows the gate. Zeroing the threshold
+    /// and not putting it back would hand the slider back to him sitting at 0.
+    @State private var savedThreshold: Float?
     @State private var dragOffset: CGFloat = 0
 
     /// How far down the finger travels before letting go throws the take away.
@@ -136,7 +144,40 @@ struct ContentView: View {
 
     // MARK: - Recording View
 
+    // MARK: - Recording View
+    //
+    // ⚠️ TWO MODES, AND THE TOGGLE IS THE POINT. Michael, 2026-09-08, after the first
+    // build shipped with the old mode deleted: "where is the toggle to switch between
+    // squelch record shutter and PTT it only says hold to talk and is no slider."
+    // The branch is called ptt-toggle. "Replaces the gain slider and the record shutter"
+    // meant replaces them WHILE PUSH TO TALK IS ON, not instead of them forever.
+    //
+    // His labels, 2026-09-08: "meeting and PTT". Meeting is the voice-activated mode —
+    // set the squelch and let it run through a conversation. PTT is deliberate: nothing is
+    // kept unless a finger is down. The names say what the mode is FOR, not how it works.
+
     private var recordingView: some View {
+        VStack(spacing: 0) {
+            Picker("Mode", selection: $usePushToTalk) {
+                Text("Meeting").tag(false)
+                Text("PTT").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 30)
+            .padding(.top, 8)
+            // Switching modes mid-take would leave a recording running with no control
+            // on screen to stop it. Close the take first, then change the instrument.
+            .disabled(recorder.isSessionActive || transcriptionService.isTranscribing)
+
+            if usePushToTalk {
+                pushToTalkRecordingView
+            } else {
+                classicRecordingView
+            }
+        }
+    }
+
+    private var pushToTalkRecordingView: some View {
         VStack(spacing: 24) {
             Spacer()
 
@@ -221,6 +262,7 @@ struct ContentView: View {
         // ⚠️ OPEN THE GATE. The recorder only captures above its threshold, which is
         // correct for voice activation and wrong here — the finger already said "now".
         // Leaving it at 0.15 would silently drop quiet speech while the button is held.
+        savedThreshold = recorder.threshold
         recorder.threshold = 0
         recorder.startRecording()
     }
@@ -228,6 +270,10 @@ struct ContentView: View {
     private func endTalking(cancelled: Bool) {
         isTalking = false
         dragOffset = 0
+
+        // Give squelch its setting back before anything else can read it.
+        if let savedThreshold { recorder.threshold = savedThreshold }
+        savedThreshold = nil
 
         let url = recorder.stopRecording()
 
@@ -248,6 +294,100 @@ struct ContentView: View {
         Task {
             await transcriptionService.transcribe(audioURL: url)
             showingResults = true
+        }
+    }
+
+    private var classicRecordingView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            // Level Meter with Threshold
+            VStack(spacing: 8) {
+                Text("Audio Level")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        // Background
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.gray.opacity(0.3))
+
+                        // Level indicator
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(levelColor)
+                            .frame(width: geometry.size.width * CGFloat(recorder.currentLevel))
+
+                        // Threshold line
+                        Rectangle()
+                            .fill(Color.white)
+                            .frame(width: 2)
+                            .offset(x: geometry.size.width * CGFloat(recorder.threshold) - 1)
+                    }
+                }
+                .frame(height: 24)
+
+                // Threshold Slider
+                HStack {
+                    Image(systemName: "speaker.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                    Slider(value: $recorder.threshold, in: 0.05...0.8)
+                        .tint(.orange)
+                    Image(systemName: "speaker.wave.3.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                Text("Sensitivity Threshold: \(Int(recorder.threshold * 100))%")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 30)
+
+            // Duration display
+            if recorder.isSessionActive {
+                VStack(spacing: 4) {
+                    // Captured time (main display)
+                    Text(formatDuration(recorder.capturedDuration))
+                        .font(.system(size: 48, weight: .light, design: .monospaced))
+                        .foregroundStyle(recorder.isCapturing ? .red : .primary)
+
+                    // Session time (smaller)
+                    Text("Session: \(formatDuration(recorder.sessionDuration))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            // Record Button
+            Button(action: toggleRecording) {
+                ZStack {
+                    Circle()
+                        .fill(recorder.isSessionActive ? Color.red : Color.red.opacity(0.8))
+                        .frame(width: 80, height: 80)
+
+                    if recorder.isSessionActive {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white)
+                            .frame(width: 30, height: 30)
+                    } else {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 30, height: 30)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(transcriptionService.isTranscribing)
+
+            Text(recorder.isSessionActive ? "Tap to Stop" : "Tap to Record")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
         }
     }
 
