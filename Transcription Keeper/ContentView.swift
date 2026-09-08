@@ -287,6 +287,7 @@ struct ContentView: View {
             Text(pushToTalkLabel)
                 .font(.caption)
                 .foregroundStyle(willCancel ? Color.red : Color.secondary)
+                .frame(height: 18)
                 .animation(.easeInOut(duration: 0.15), value: willCancel)
 
             Spacer()
@@ -297,12 +298,20 @@ struct ContentView: View {
         ZStack {
             Circle()
                 .fill(willCancel ? Color.gray : Color.red)
-                .frame(width: isTalking ? 104 : 80, height: isTalking ? 104 : 80)
+                .frame(width: 80, height: 80)
+                // ⚠️ SCALE, DO NOT RESIZE. Changing the frame from 80 to 104 grew the
+                // view inside a stack with spacers, so the whole button MOVED when it was
+                // pressed — under a finger that had not moved, in the direction that means
+                // cancel. Reported three times before the cause was found, and twice the
+                // counter was blamed for it. A scaleEffect draws bigger without occupying
+                // more room, so the footprint never changes.
+                .scaleEffect(isTalking ? 1.3 : 1.0)
 
             Image(systemName: willCancel ? "xmark" : "mic.fill")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(.white)
         }
+        .frame(width: 110, height: 110)
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTalking)
         .offset(y: min(max(dragOffset, 0), cancelDistance))
         // minimumDistance 0 so the press itself starts the take — a hold that only
