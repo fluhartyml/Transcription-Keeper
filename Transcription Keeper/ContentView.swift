@@ -16,6 +16,28 @@ struct ContentView: View {
 
     // Results state
     @State private var lastRecordingURL: URL?
+
+    // MARK: - Push to talk
+    //
+    // Michael, 2026-09-08: "i would imagine it replaces the gain slider and the record
+    // shutter." It does, and the slider went with it on purpose — a threshold is the app
+    // GUESSING when you meant to speak. Push to talk is you saying so. Once the finger is
+    // the switch there is nothing left for a sensitivity control to decide.
+    @State private var isTalking = false
+    @State private var dragOffset: CGFloat = 0
+
+    /// How far down the finger travels before letting go throws the take away.
+    private let cancelDistance: CGFloat = 90
+
+    /// ⚠️ THE ABORT IS NOT A NICETY. His rule, 2026-09-07: "if I say never mind it should
+    /// cancel" / "can the PTT have a pull mouse away cancel action equivilant?"
+    /// A push to talk with no cancel sends every misfire.
+    private var willCancel: Bool { isTalking && dragOffset > cancelDistance }
+
+    private var pushToTalkLabel: String {
+        if !isTalking { return "Hold to Talk" }
+        return willCancel ? "Release to cancel" : "Slide down to cancel"
+    }
     @State private var showingResults = false
     @State private var showingShareText = false
     @State private var showingShareAudio = false
@@ -118,7 +140,8 @@ struct ContentView: View {
         VStack(spacing: 24) {
             Spacer()
 
-            // Level Meter with Threshold
+            // The level meter STAYS. With the threshold gone it is no longer a control,
+            // it is the only proof the microphone is hearing anything at all.
             VStack(spacing: 8) {
                 Text("Audio Level")
                     .font(.caption)
@@ -126,51 +149,24 @@ struct ContentView: View {
 
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
-                        // Background
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color.gray.opacity(0.3))
 
-                        // Level indicator
                         RoundedRectangle(cornerRadius: 4)
                             .fill(levelColor)
                             .frame(width: geometry.size.width * CGFloat(recorder.currentLevel))
-
-                        // Threshold line
-                        Rectangle()
-                            .fill(Color.white)
-                            .frame(width: 2)
-                            .offset(x: geometry.size.width * CGFloat(recorder.threshold) - 1)
                     }
                 }
                 .frame(height: 24)
-
-                // Threshold Slider
-                HStack {
-                    Image(systemName: "speaker.fill")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                    Slider(value: $recorder.threshold, in: 0.05...0.8)
-                        .tint(.orange)
-                    Image(systemName: "speaker.wave.3.fill")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                }
-
-                Text("Sensitivity Threshold: \(Int(recorder.threshold * 100))%")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 30)
 
-            // Duration display
             if recorder.isSessionActive {
                 VStack(spacing: 4) {
-                    // Captured time (main display)
                     Text(formatDuration(recorder.capturedDuration))
                         .font(.system(size: 48, weight: .light, design: .monospaced))
-                        .foregroundStyle(recorder.isCapturing ? .red : .primary)
+                        .foregroundStyle(willCancel ? Color.secondary : Color.red)
 
-                    // Session time (smaller)
                     Text("Session: \(formatDuration(recorder.sessionDuration))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -179,32 +175,79 @@ struct ContentView: View {
 
             Spacer()
 
-            // Record Button
-            Button(action: toggleRecording) {
-                ZStack {
-                    Circle()
-                        .fill(recorder.isSessionActive ? Color.red : Color.red.opacity(0.8))
-                        .frame(width: 80, height: 80)
+            pushToTalkButton
 
-                    if recorder.isSessionActive {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.white)
-                            .frame(width: 30, height: 30)
-                    } else {
-                        Circle()
-                            .fill(Color.white)
-                            .frame(width: 30, height: 30)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            .disabled(transcriptionService.isTranscribing)
-
-            Text(recorder.isSessionActive ? "Tap to Stop" : "Tap to Record")
+            Text(pushToTalkLabel)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(willCancel ? Color.red : Color.secondary)
+                .animation(.easeInOut(duration: 0.15), value: willCancel)
 
             Spacer()
+        }
+    }
+
+    private var pushToTalkButton: some View {
+        ZStack {
+            Circle()
+                .fill(willCancel ? Color.gray : Color.red)
+                .frame(width: isTalking ? 104 : 80, height: isTalking ? 104 : 80)
+
+            Image(systemName: willCancel ? "xmark" : "mic.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTalking)
+        .offset(y: min(max(dragOffset, 0), cancelDistance))
+        // minimumDistance 0 so the press itself starts the take — a hold that only
+        // begins after the finger MOVES would clip the first word off every sentence.
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if !isTalking { beginTalking() }
+                    dragOffset = value.translation.height
+                }
+                .onEnded { _ in
+                    endTalking(cancelled: willCancel)
+                }
+        )
+        .disabled(transcriptionService.isTranscribing)
+    }
+
+    private func beginTalking() {
+        isTalking = true
+        dragOffset = 0
+        showingResults = false
+
+        // ⚠️ OPEN THE GATE. The recorder only captures above its threshold, which is
+        // correct for voice activation and wrong here — the finger already said "now".
+        // Leaving it at 0.15 would silently drop quiet speech while the button is held.
+        recorder.threshold = 0
+        recorder.startRecording()
+    }
+
+    private func endTalking(cancelled: Bool) {
+        isTalking = false
+        dragOffset = 0
+
+        let url = recorder.stopRecording()
+
+        if cancelled {
+            // Throw the take away rather than transcribing it. Deleting the file is the
+            // point — a cancelled recording that stays on disk is not cancelled.
+            if let url { try? FileManager.default.removeItem(at: url) }
+            recorder.startMonitoring()
+            return
+        }
+
+        guard let url else {
+            recorder.startMonitoring()
+            return
+        }
+
+        lastRecordingURL = url
+        Task {
+            await transcriptionService.transcribe(audioURL: url)
+            showingResults = true
         }
     }
 
