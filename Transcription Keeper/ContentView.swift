@@ -162,15 +162,25 @@ struct ContentView: View {
         .sheet(isPresented: $showingAbout) {
             AboutView()
         }
+        // His report, 2026-09-08: "the (i) is too small and squished under the battery."
+        // Two faults in one control: a 22pt glyph with no touch target around it, pinned
+        // hard into the corner the status bar already owns.
+        //
+        // 44x44 is Apple's minimum touch target and the reason it is a minimum — this is
+        // an app operated by thumb, sometimes without looking. The extra top and trailing
+        // padding walks it out from under the battery.
         .overlay(alignment: .topTrailing) {
             Button {
                 showingAbout = true
             } label: {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 22))
+                    .font(.system(size: 30, weight: .regular))
                     .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
             }
-            .padding(16)
+            .padding(.trailing, 14)
+            .padding(.top, 18)
         }
     }
 
