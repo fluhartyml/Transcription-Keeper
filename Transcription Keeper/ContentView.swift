@@ -142,6 +142,43 @@ struct ContentView: View {
         }
     }
 
+    // ⚠️ THIS BLOCK IS ALWAYS IN THE LAYOUT, EVEN WHEN IT SHOWS NOTHING.
+    //
+    // Michael, 2026-09-08: "before recording on either the squelch slider or the ptt
+    // while recording the counter appears sliding the ptt under your finger, looks like
+    // an accidental undo."
+    //
+    // It was inserted with `if recorder.isSessionActive`, so starting a take grew the
+    // stack and pushed everything below it DOWN — including the push-to-talk button,
+    // which travels down for exactly one reason: cancel. The finger never moved. The
+    // instrument moved under it, and it looked like the take had just been thrown away.
+    //
+    // His follow-up, same minute: "the counter should always be there." So it is not
+    // hidden and spaced — it is ALWAYS SHOWING, reading zero when idle. An instrument's
+    // display stays lit; a readout that appears when you start is a readout you cannot
+    // check BEFORE you start.
+    // Reserving the height costs nothing and means the button is nailed to the glass.
+    // An instrument you operate without looking cannot move while you are holding it.
+    /// Red only while a take is actually being kept. Idle and about-to-cancel both read
+    /// grey, so the colour answers one question: is this going into the record right now.
+    private var counterColor: Color {
+        if willCancel { return .secondary }
+        return recorder.isSessionActive ? .red : .secondary
+    }
+
+    private var durationDisplay: some View {
+        VStack(spacing: 4) {
+            Text(formatDuration(recorder.capturedDuration))
+                .font(.system(size: 48, weight: .light, design: .monospaced))
+                .foregroundStyle(counterColor)
+
+            Text("Session: \(formatDuration(recorder.sessionDuration))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: 76)
+    }
+
     // MARK: - Recording View
 
     // MARK: - Recording View
@@ -202,17 +239,7 @@ struct ContentView: View {
             }
             .padding(.horizontal, 30)
 
-            if recorder.isSessionActive {
-                VStack(spacing: 4) {
-                    Text(formatDuration(recorder.capturedDuration))
-                        .font(.system(size: 48, weight: .light, design: .monospaced))
-                        .foregroundStyle(willCancel ? Color.secondary : Color.red)
-
-                    Text("Session: \(formatDuration(recorder.sessionDuration))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            durationDisplay
 
             Spacer()
 
@@ -346,19 +373,7 @@ struct ContentView: View {
             .padding(.horizontal, 30)
 
             // Duration display
-            if recorder.isSessionActive {
-                VStack(spacing: 4) {
-                    // Captured time (main display)
-                    Text(formatDuration(recorder.capturedDuration))
-                        .font(.system(size: 48, weight: .light, design: .monospaced))
-                        .foregroundStyle(recorder.isCapturing ? .red : .primary)
-
-                    // Session time (smaller)
-                    Text("Session: \(formatDuration(recorder.sessionDuration))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            durationDisplay
 
             Spacer()
 
