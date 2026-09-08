@@ -42,6 +42,23 @@ struct ContentView: View {
     /// A push to talk with no cancel sends every misfire.
     private var willCancel: Bool { isTalking && dragOffset > cancelDistance }
 
+    /// At rest these are drawn in clear — present, sized, invisible. His fix.
+    private var statusDotColor: Color {
+        guard recorder.isSessionActive else { return .clear }
+        return recorder.isCapturing ? .red : .orange
+    }
+
+    private var statusTextColor: Color {
+        guard recorder.isSessionActive else { return .clear }
+        return recorder.isCapturing ? .red : .orange
+    }
+
+    /// "Listening..." is the widest of the three, so it is what holds the row open.
+    private var statusText: String {
+        guard recorder.isSessionActive else { return "Listening..." }
+        return recorder.isCapturing ? "Recording" : "Listening..."
+    }
+
     private var pushToTalkLabel: String {
         if !isTalking { return "Hold to Talk" }
         return willCancel ? "Release to cancel" : "Slide down to cancel"
@@ -63,25 +80,40 @@ struct ContentView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            // Status indicator
-            if recorder.isSessionActive {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(recorder.isCapturing ? Color.red : Color.orange)
-                        .frame(width: 12, height: 12)
-                    Text(recorder.isCapturing ? "Recording" : "Listening...")
-                        .font(.headline)
-                        .foregroundStyle(recorder.isCapturing ? .red : .orange)
-                }
-            } else if transcriptionService.isTranscribing {
-                HStack(spacing: 8) {
+            // ⭐ STATUS ROW — ALWAYS PRESENT, INVISIBLE WHEN IDLE.
+            //
+            // MICHAEL FOUND THIS, 2026-09-08, after three wrong diagnoses from me:
+            // "i found it, its the 'listening. ..' it causes everything to slide down."
+            // It was wrapped in `if recorder.isSessionActive`, so starting a take INSERTED
+            // a row at the top of the screen and pushed the entire layout down — including
+            // the push-to-talk button, under a thumb that had not moved, in the direction
+            // that means cancel.
+            //
+            // And the fix is his too: "maybe have invisable letters." The row is now always
+            // in the layout at a fixed height; at rest the dot and the letters are simply
+            // drawn in clear. The space is occupied whether or not anything is showing, so
+            // there is nothing left that can move.
+            HStack(spacing: 8) {
+                if transcriptionService.isTranscribing {
                     ProgressView()
                         .scaleEffect(0.8)
                     Text(transcriptionService.statusMessage)
                         .font(.headline)
                         .foregroundStyle(.blue)
+                } else {
+                    Circle()
+                        .fill(statusDotColor)
+                        .frame(width: 12, height: 12)
+                    Text(statusText)
+                        .font(.headline)
+                        .foregroundStyle(statusTextColor)
                 }
             }
+            // ⚠️ NO FORCED HEIGHT. Clamping this to 22pt made ".headline" text draw OUTSIDE
+            // its frame — SwiftUI overflows rather than shrinking — and "Listening..."
+            // landed on top of the mode picker. His report: "listening appears over the
+            // tabs." The row does not need a clamp: it is always in the layout now, with
+            // the same font in every state, so its height is already constant.
 
             // Show results or recording UI
             if showingResults && !transcriptionService.isTranscribing {
@@ -192,10 +224,7 @@ struct ContentView: View {
                         .frame(height: 58)
                 }
             }
-            // Cross-fade only. An animation that resizes is an animation that moves
-            // the instrument, which is the whole fault being fixed here.
             .frame(height: 58)
-            .animation(.easeInOut(duration: 0.25), value: recorder.isSessionActive)
 
             Text("Session: \(formatDuration(recorder.sessionDuration))")
                 .font(.caption)
@@ -294,28 +323,35 @@ struct ContentView: View {
         }
     }
 
+    /// ⚠️ THIS VIEW DOES NOT MOVE. NOT BY A POINT, NOT FOR A MOMENT.
+    ///
+    /// Michael reported it four times on 2026-09-08 — "sliding the ptt under your finger",
+    /// "the counter makes the pt button slide down", "the counter still slides", and
+    /// finally "it moves in some sort of animation". Three different causes were found and
+    /// fixed and it still moved, because each fix removed one mover and left another:
+    /// a conditional counter that changed the layout height, two counter states of
+    /// different sizes, a frame that grew from 80 to 104 when held, a spring that settled
+    /// afterwards, and an offset that followed his thumb.
+    ///
+    /// The lesson is the one his Skills Lab already had: fixing the interesting mover and
+    /// leaving the boring one is not a fix. So every source of motion is gone rather than
+    /// tuned. **The only things that change are colour and wording.**
+    ///
+    /// The cancel still works exactly as before — the gesture measures how far his thumb
+    /// has travelled. It simply no longer drags the instrument along with it. A machine
+    /// you operate without looking has to be where you left it.
     private var pushToTalkButton: some View {
         ZStack {
             Circle()
                 .fill(willCancel ? Color.gray : Color.red)
-                .frame(width: 80, height: 80)
-                // ⚠️ SCALE, DO NOT RESIZE. Changing the frame from 80 to 104 grew the
-                // view inside a stack with spacers, so the whole button MOVED when it was
-                // pressed — under a finger that had not moved, in the direction that means
-                // cancel. Reported three times before the cause was found, and twice the
-                // counter was blamed for it. A scaleEffect draws bigger without occupying
-                // more room, so the footprint never changes.
-                .scaleEffect(isTalking ? 1.3 : 1.0)
+                .frame(width: 96, height: 96)
 
             Image(systemName: willCancel ? "xmark" : "mic.fill")
-                .font(.system(size: 30, weight: .semibold))
+                .font(.system(size: 34, weight: .semibold))
                 .foregroundStyle(.white)
         }
         .frame(width: 110, height: 110)
-        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isTalking)
-        .offset(y: min(max(dragOffset, 0), cancelDistance))
-        // minimumDistance 0 so the press itself starts the take — a hold that only
-        // begins after the finger MOVES would clip the first word off every sentence.
+        .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
