@@ -70,11 +70,37 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 24) {
             // Title
-            Image("KnightMicWaveform")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 100, height: 100)
-                .cornerRadius(20)
+            // ⛔ THE (i) LIVES BESIDE THE HERO, NOT AT THE TOP OF THE SCREEN.
+            //
+            // His instruction, 2026-09-14: "put it at the same level as the top of the
+            // hero" — after "i have a notch why put it all the way up there?"
+            //
+            // ⚠️ THAT QUESTION IS THE FIX. Two attempts fought the status bar instead of
+            // leaving it alone: a guessed padding (wrong on every other device), then a
+            // safe-area inset (correct in principle, and it still ended up under the
+            // notch on his 16e). A control docked to the top edge has to negotiate with
+            // whatever Apple put there — notch, Dynamic Island, or neither.
+            //
+            // Aligned to the hero image it never touches that region at all, so there is
+            // no geometry left to get wrong and nothing to re-tune per device.
+            ZStack(alignment: .topTrailing) {
+                Image("KnightMicWaveform")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 100)
+                    .cornerRadius(20)
+                    .frame(maxWidth: .infinity)
+
+                Button {
+                    showingAbout = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 30, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
+                }
+            }
 
             Text("Transcription Keeper")
                 .font(.largeTitle)
@@ -190,18 +216,6 @@ struct ContentView: View {
         // safeAreaInset places the button INSIDE the safe area by construction. It clears
         // the status bar on every device without a magic number, and because it reserves
         // its own row it cannot overlap anything below it either.
-        .safeAreaInset(edge: .top, alignment: .trailing, spacing: 0) {
-            Button {
-                showingAbout = true
-            } label: {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 30, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
-            }
-            .padding(.trailing, 14)
-        }
     }
 
     // ⚠️ THIS BLOCK IS ALWAYS IN THE LAYOUT, EVEN WHEN IT SHOWS NOTHING.
