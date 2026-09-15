@@ -34,6 +34,24 @@ struct AboutView: View {
                             Text(version)
                                 .font(.system(size: 18))
                                 .foregroundStyle(.secondary)
+
+                            // The standard: version, build number, short SHA, build time —
+                            // all four readable OUT LOUD off the device by someone who
+                            // cannot see Xcode. That is the whole point of it existing.
+                            if BuildStamp.isStamped {
+                                Text("\(BuildStamp.commit) · \(BuildStamp.branch)")
+                                    .font(.system(size: 14, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                Text(BuildStamp.built)
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                // Not a blank — an answer. This binary predates stamping,
+                                // which makes it older than any stamped build.
+                                Text("unstamped build")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.orange)
+                            }
                         }
                     }
                     .padding(.vertical, 4)

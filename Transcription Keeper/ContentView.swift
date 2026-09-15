@@ -131,6 +131,22 @@ struct ContentView: View {
             }
         }
         .padding()
+        // ⛔ THE CONTAINER MUST BE THE SCREEN, OR THE INSET RIDES THE CONTENT.
+        //
+        // His report, 2026-09-14, on an iPhone 16e: "the (i) is under the battery and i can
+        // not tap it" — and only in PTT mode. The transcript screens placed it correctly.
+        //
+        // ⚠️ `.safeAreaInset` BELOW IS ATTACHED TO THIS VSTACK, NOT TO THE WINDOW. A VStack
+        // sizes to its content and centres, so when PTT mode makes the content taller —
+        // level meter, session counter, the big hold-to-talk button — the stack overflows
+        // UPWARD and the inset goes with it, straight under the status bar. Outside the
+        // safe area there is nothing to tap: the hit test never reaches it.
+        //
+        // Filling the container first pins the inset to the SCREEN's safe area, which is
+        // what the earlier fix intended. It works the same on a notch and on the Dynamic
+        // Island — "the island messed things up," and the point of an inset is that the
+        // island's height stops being a number anyone has to know.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             hasPermission = await recorder.requestPermission()
             let speechPermission = await transcriptionService.requestPermission()
