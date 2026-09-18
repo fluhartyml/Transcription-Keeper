@@ -7,6 +7,48 @@
 //
 
 // ============================================================================
+// MARK: - ⭐ STABLE RELEASE / FALLBACK POINT — BUILD 24
+// ============================================================================
+//
+//  Marked at Michael's instruction, 2026-09-17.
+//
+//      BUILD 24  ·  commit 20a5382  ·  version 2.0 (24)
+//      "The (i) moves beside the hero, where the notch cannot reach it"
+//
+//  ✅ THIS IS THE APPROVED, SHIPPING BINARY. Apple approved it and it went live on
+//     2026-09-15 at 01:48, minimum iOS 27.0. It is what is on his devices from the
+//     App Store, and it is the KNOWN-GOOD STATE to come back to.
+//
+//  ⛔ EVERYTHING AFTER 24 IS UNPROVEN ON HARDWARE. Builds 25+ add speaker separation
+//     and roadmap work. They BUILD, and that is all that is known about them — no
+//     build after 24 has run on one of his phones, and none has been tested in a real
+//     room with real voices. `BUILD SUCCEEDED` is the trigger to go and test, never
+//     to install.
+//
+//  ▶️ HOW TO GET BACK TO IT — read it before running it:
+//        git log --oneline 20a5382 -1        # confirm it is the commit named above
+//        git checkout 20a5382                # detached HEAD: look, build, install
+//     To make it the tip again, prefer a REVERT over a reset — a reset throws away
+//     the work after 24 and Commandment VI says never delete his work to satisfy a
+//     request:
+//        git revert --no-commit 20a5382..HEAD && git commit
+//
+//  ⚠️ THE BUILD NUMBER IS WHAT MAKES THIS WORK AT ALL. Every build stamps
+//     `CURRENT_PROJECT_VERSION` from `git rev-list --count HEAD` and shows it in the
+//     app, so a phone can be ASKED which build it is carrying instead of guessed at.
+//     Without it "fall back to the stable one" is not an instruction anybody can
+//     follow — that is the whole lesson of 2026-09-03/04, when every Shell Citadel
+//     build called itself 1.0 (1) and a working iPad could not be told from three
+//     broken iPhones. A day went into guessing at a difference the app could have
+//     simply stated.
+//
+//  ⬜ NOT A GIT TAG YET. This is a comment, which is what he asked for. A real tag
+//     (`git tag -a stable-24 20a5382`) would put it in the machinery where it cannot
+//     be missed — his own principle, machinery over memory — but tagging is his call
+//     to make, not one to take.
+//
+
+// ============================================================================
 // MARK: - PROJECT IDENTITY
 // ============================================================================
 //
