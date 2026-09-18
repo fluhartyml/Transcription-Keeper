@@ -163,6 +163,56 @@
 //      ⬜ NOT ADVERTISED YET: the App Store description and the landing page do not
 //         mention speaker separation. Correct until it is tested in a real room.
 //
+//  [ ] PTT INTERVIEW MODE — tag the cards. HIS DESIGN, 2026-09-17.
+//      ⛔ THIS IS NOT DIARIZATION AND MUST NOT BE BUILT ON IT. In push-to-talk the
+//         app ALREADY KNOWS where the speaker changes: the button press IS the
+//         boundary. Diarization is acoustic guesswork trying to recover a line the
+//         interface hands over for free. His framing that got here: "the ptt would be
+//         one person or maybe if they were doing an interview it could flag speaker
+//         name one vs speaker name 2."
+//
+//      HIS SHAPE, in his words:
+//        "maybe the interviewer controls the ptt the whole interview ... can the
+//         interviewer wait till finished and then have the ptt bursts presented as
+//         cards or something and the speakers up to 5 (random number) and the
+//         interviewer fills out the participants names before or after the interview
+//         (i would suggest before) then next to the cards are five color coded
+//         speaker tags and the interviewer tags each card with the speaker"
+//
+//        · ONE PERSON HOLDS THE BUTTON for the whole interview — the interviewer.
+//          Everyone speaks into it; the interviewer works the press-and-release.
+//        · TAGGING IS A POST-PASS. Bursts are presented as CARDS after the interview
+//          is finished, not tagged live. Nobody can run an interview and tag it at
+//          the same time — the same load that made short bursts the unit.
+//        · PARTICIPANT NAMES ARE FILLED IN FIRST. "i would suggest before" — his call,
+//          and it is the right one: tags have to exist before there is anything to tag
+//          a card WITH.
+//        · FIVE COLOUR-CODED SPEAKER TAGS beside the cards; tagging is a visual match
+//          rather than typing a name five hundred times.
+//        ⚠️ FIVE IS HIS OWN "(random number)" — his words. It is a starting point, NOT
+//          a measured limit, and nothing should be built that treats 5 as a constraint.
+//
+//      WHY THIS IS STRICTLY BETTER THAN DIARIZATION *FOR PTT*: it cannot over-split,
+//      because it never clusters. The doctor who became a third voice on 2026-08-19
+//      is impossible here — a card belongs to exactly one press, and a person decides
+//      whose it is.
+//
+//      ⬜ OPEN, NOT DECIDED — do not assume either way:
+//        · A burst where two people talk over each other. Split a card? Two tags?
+//        · Untagged cards at publish — blocked, or published unattributed?
+//        · Does a tagged card still climb the Composition ladder (burst → paragraph →
+//          page)? It should — a tag describes a burst, it does not replace it — but
+//          that is reasoning, not his ruling.
+//        · Whether the meeting recorder ever offers cards too, with diarization's
+//          guesses PRE-TAGGED for correction. That would make one review surface for
+//          both modes, and it is exactly what "labels are a guess the user corrects"
+//          has always implied.
+//
+//      SO THE SPLIT IS: meeting/squelch → diarization, because many voices share one
+//      continuous recording and nothing marks the handoffs. PTT → card tagging,
+//      because the handoffs are already marked. Two mechanisms, chosen by what the
+//      capture mode actually knows.
+//
 //  [ ] Rename detected speakers — "Speaker 1" → "Dr. Prasad"
 //      detectedSpeakers already reports which labels a transcript used, so the
 //      rename screen does not need to re-run the diarizer.
