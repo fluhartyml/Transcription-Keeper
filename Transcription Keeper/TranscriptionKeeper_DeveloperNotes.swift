@@ -179,6 +179,29 @@
 //         (i would suggest before) then next to the cards are five color coded
 //         speaker tags and the interviewer tags each card with the speaker"
 //
+//      ⛔ WHY ONE PERSON HOLDS THE BUTTON — and it RULES OUT the obvious alternative.
+//         His observation, 2026-09-17: "an iphone is a personal device that the
+//         interviewer probably wouldnt trust passing the phone around for each person
+//         to PTT."
+//         **Pass-the-phone — each participant pressing their own bursts — is DEAD.**
+//         It is the design a reasonable person reaches for first, because it would make
+//         every burst self-labelling and the tagging pass unnecessary. It fails for a
+//         reason no amount of engineering fixes: nobody hands their unlocked phone to a
+//         stranger, a doctor, or four people in a room. ⚠️ Do not resurrect it.
+//
+//      📡 AND IT SETTLES THE MICROPHONE QUESTION, which cuts against diarization again:
+//         the phone stays at the INTERVIEWER'S position, so every other voice is
+//         recorded off-axis and at distance, through one mic, at different volumes.
+//         That is the hardest possible input for acoustic clustering — and the easiest
+//         for a human tagging cards, who is reading words and not waveforms. It is also
+//         exactly the case Apple built SpeechTranscriber for ("speakers not close to
+//         mic"), so the transcription half holds up where the clustering half would not.
+//
+//      🔒 IT ALSO EXPLAINS WHY TAGGING-AFTER WORKS AT ALL: the interviewer never gives
+//         up custody of the device, so the person who ran the interview is the same
+//         person reviewing the cards, with the conversation still fresh. A tagging pass
+//         that depended on handing the phone around would have neither property.
+//
 //        · ONE PERSON HOLDS THE BUTTON for the whole interview — the interviewer.
 //          Everyone speaks into it; the interviewer works the press-and-release.
 //        · TAGGING IS A POST-PASS. Bursts are presented as CARDS after the interview
