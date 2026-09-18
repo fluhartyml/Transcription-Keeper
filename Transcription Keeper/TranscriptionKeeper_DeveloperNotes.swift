@@ -215,6 +215,38 @@
 //        ⚠️ FIVE IS HIS OWN "(random number)" — his words. It is a starting point, NOT
 //          a measured limit, and nothing should be built that treats 5 as a constraint.
 //
+//      ⭐ THE GENERALISATION — HIS, 2026-09-17, AND IT RESHAPES THE FEATURE.
+//         "maybe the student uses those tags for something else like one person talking
+//          but shifting across five topics? if so then maybe the interviewee or subject
+//          tag number is defined by the user"
+//
+//         **THE TAG IS NOT A SPEAKER. The tag is a user-defined dimension, and SPEAKER
+//         is only its most obvious instance.** One person recording alone, moving
+//         through five topics, wants the same cards and the same coloured tags — and
+//         nothing about the mechanism cares which meaning is loaded into it.
+//
+//         | Who | What the tags are |
+//         |---|---|
+//         | interviewer | the participants |
+//         | a student | the topics in a lecture |
+//         | Michael, dictating | sections of a report |
+//
+//         ⛔ CONSEQUENCES, and they are not cosmetic:
+//           · **The USER names the dimension and the labels** — not the app, and not a
+//             hardcoded "Speaker N". "Speaker 1" becomes a DEFAULT for one use case
+//             rather than the model everything is built on.
+//           · **The USER sets the count.** This retires the earlier "(random number)"
+//             five for good: it was never a limit and now it is not even a default —
+//             three topics, or eight participants, are the user's call.
+//           · **It widens who the app is for.** A student taking lecture notes is a new
+//             audience, and it arrived from him, not from market reasoning.
+//
+//         ⬜ REASONING, NOT HIS RULING — flagged so it is not mistaken for decided:
+//           if a burst carries a tag, tags could DRIVE the Composition ladder. Every
+//           card tagged "topic 3" collecting into one page would make the tag the thing
+//           that assembles the document, not just annotates it. That is a large idea
+//           and it is NOT decided. Ask before building toward it.
+//
 //      WHY THIS IS STRICTLY BETTER THAN DIARIZATION *FOR PTT*: it cannot over-split,
 //      because it never clusters. The doctor who became a third voice on 2026-08-19
 //      is impossible here — a card belongs to exactly one press, and a person decides
