@@ -27,6 +27,12 @@ class TranscriptionService {
     /// Progress message during transcription
     var statusMessage: String = ""
 
+    /// The recognised words WITH their timings, kept so speaker separation has
+    /// something to attach names to. `formattedString` throws the timings away, and
+    /// the diarizer answers "who spoke between 4.1s and 7.8s" — without these the two
+    /// halves cannot be joined at all.
+    var tokens: [Token] = []
+
     // MARK: - Private Properties
 
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale.current)
@@ -46,6 +52,7 @@ class TranscriptionService {
     func transcribe(audioURL: URL) async {
         isTranscribing = true
         transcription = ""
+        tokens = []
         errorMessage = nil
         statusMessage = "Preparing transcription..."
 
@@ -64,6 +71,15 @@ class TranscriptionService {
 
             // Perform recognition
             let result = try await recognizer.recognitionTask(with: request)
+
+            // Keep the timed segments BEFORE flattening to a string. Each
+            // SFTranscriptionSegment carries its own timestamp and duration; the
+            // formatted string carries neither.
+            tokens = result.bestTranscription.segments.map {
+                Token(text: $0.substring,
+                      start: $0.timestamp,
+                      end: $0.timestamp + $0.duration)
+            }
 
             transcription = result.bestTranscription.formattedString
             if transcription.isEmpty {

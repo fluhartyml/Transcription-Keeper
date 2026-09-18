@@ -144,9 +144,34 @@
 //
 //  Future (v3+):
 //  ----------------------------------------
-//  [ ] Speaker diarization — "Speaker 1" / "Speaker 2" labels
-//      Research: FluidAudio (forked as research-swift-scribe)
-//      Simpler option: "[Speaker changed]" markers
+//  [x] Speaker diarization — "Speaker 1" / "Speaker 2" labels        WIRED 2026-09-17
+//      FluidAudio, on-device, pinned. DiarizationService had existed since build 8
+//      with the package linked — and NOTHING CALLED IT. Michael remembered labelling
+//      himself and his doctor and being split into an extra voice; that was the
+//      2026-08-19 spike and Lighthouse, never this app. Now wired:
+//        · a speaker-count stepper, set BEFORE recording (the diarizer is told how
+//          many voices to cluster into, so it cannot be inferred afterwards)
+//        · timed tokens kept from SFSpeechRecognizer — formattedString throws the
+//          timings away and the diarizer answers in seconds, so without them the two
+//          halves cannot be joined
+//        · SpeakerLayout, ported from Lighthouse's layOutDetectingSpeakers
+//        · BOTH capture paths routed through one function, because a feature wired
+//          into only push-to-talk or only classic would simply not exist in the other
+//      ⬜ STILL OPEN: renaming "Speaker 1" to a real name. The labels are a guess the
+//         user corrects — Michael's ruling — and today there is nowhere to correct
+//         them. That is the next piece, and it is what the Dec 2 appointment needs.
+//      ⬜ NOT ADVERTISED YET: the App Store description and the landing page do not
+//         mention speaker separation. Correct until it is tested in a real room.
+//
+//  [ ] Rename detected speakers — "Speaker 1" → "Dr. Prasad"
+//      detectedSpeakers already reports which labels a transcript used, so the
+//      rename screen does not need to re-run the diarizer.
+//
+//  [ ] Composition — the third tab. Full design in DEVELOPER-NOTES.md (2026-09-15):
+//      the ladder burst → paragraph → page → publish, a meeting entering as ONE page,
+//      the chain holding mixed sizes, and a page that keeps audio while discarding its
+//      transcript. The genuinely new control is "this capture is done" — it exists in
+//      neither mode today. ⛔ Nothing commits on a timer, a pause or a silence gap.
 //
 //  v2 Priority Note:
 //  Apple Watch + audio saving adds substance and addresses Apple's

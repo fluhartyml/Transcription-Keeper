@@ -64,6 +64,15 @@ struct ContentView: View {
         return willCancel ? "Release to cancel" : "Slide down to cancel"
     }
     @State private var showingResults = false
+
+    /// How many voices to expect. **1 by default, and that default is load-bearing:**
+    /// asking for two when only one person spoke FORCES a split — Michael proved that
+    /// by recording himself alone and coming back as two people. At 1 the diarizer is
+    /// skipped entirely, which is both faster and correct for the common case.
+    @State private var expectedSpeakers = 1
+
+    /// The generic labels the last transcript actually used ("Speaker 1", "Speaker 2").
+    @State private var detectedSpeakers: [String] = []
     @State private var showingShareText = false
     @State private var showingShareAudio = false
 
@@ -422,6 +431,45 @@ struct ContentView: View {
         recorder.startRecording()
     }
 
+    /// Transcribe, then — only if more than one voice was asked for — separate the
+    /// speakers and re-lay the transcript with labels.
+    ///
+    /// Both recording modes funnel through here on purpose. The push-to-talk path and
+    /// the classic path each used to call `transcribe` themselves, and a feature wired
+    /// into one of them would simply not exist in the other.
+    private func transcribeAndSeparate(url: URL) async {
+        await transcriptionService.transcribe(audioURL: url)
+        detectedSpeakers = []
+
+        // Nothing to separate: one voice, no words, or the transcriber failed.
+        guard expectedSpeakers > 1,
+              !transcriptionService.tokens.isEmpty,
+              transcriptionService.errorMessage == nil else { return }
+
+        #if canImport(FluidAudio)
+        transcriptionService.statusMessage = "Separating speakers…"
+        do {
+            let spans = try await DiarizationService.diarize(fileAt: url,
+                                                             expectedSpeakers: expectedSpeakers)
+            let laid = SpeakerLayout.layOutDetectingSpeakers(
+                tokens: transcriptionService.tokens, spans: spans)
+            // Only replace the transcript if the layout produced something. A silent
+            // swap to an empty string would read as "the recording was lost".
+            if !laid.text.isEmpty {
+                transcriptionService.transcription = laid.text
+                detectedSpeakers = laid.speakers
+            }
+            transcriptionService.statusMessage = "Transcription complete"
+        } catch {
+            // The words are already transcribed and on screen. Losing the speaker
+            // labels must not take the transcript with it — say so and keep the text.
+            transcriptionService.statusMessage = "Speakers could not be separated"
+            transcriptionService.errorMessage =
+                "Speakers could not be separated: \(error.localizedDescription). The transcript is still here."
+        }
+        #endif
+    }
+
     private func endTalking(cancelled: Bool) {
         isTalking = false
         dragOffset = 0
@@ -447,8 +495,39 @@ struct ContentView: View {
 
         lastRecordingURL = url
         Task {
-            await transcriptionService.transcribe(audioURL: url)
+            await transcribeAndSeparate(url: url)
             showingResults = true
+        }
+    }
+
+    /// How many people are about to talk.
+    ///
+    /// ⚠️ THIS IS SET BEFORE RECORDING, NOT AFTER, and that is not a limitation — the
+    /// diarizer is told how many voices to cluster into, so the number has to be a
+    /// decision rather than something inferred from the audio. Michael's own phrasing
+    /// on the Lighthouse version — "Just me talking" / "N people talking" — is kept
+    /// word for word, because it asks the question in the terms the user is in.
+    ///
+    /// Hidden entirely when FluidAudio is not linked: a control that cannot do
+    /// anything is worse than no control.
+    @ViewBuilder
+    private var speakerCount: some View {
+        if diarizationAvailable {
+            VStack(spacing: 4) {
+                Stepper(value: $expectedSpeakers, in: 1...8) {
+                    Text(expectedSpeakers == 1 ? "Just me talking" : "\(expectedSpeakers) people talking")
+                        .font(.subheadline)
+                }
+                Text(expectedSpeakers == 1
+                     ? "Speakers will not be separated."
+                     : "Labels are a guess you can correct afterwards.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 30)
+            // Changing it mid-recording would apply to audio already captured.
+            .disabled(recorder.isSessionActive || transcriptionService.isTranscribing)
         }
     }
 
@@ -499,6 +578,8 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 30)
+
+            speakerCount
 
             // Duration display
             durationDisplay
@@ -605,7 +686,7 @@ struct ContentView: View {
 
                 // Start transcription
                 Task {
-                    await transcriptionService.transcribe(audioURL: url)
+                    await transcribeAndSeparate(url: url)
                     showingResults = true
                 }
             } else {
