@@ -76,7 +76,7 @@ struct ContentView: View {
     @State private var showingShareText = false
     @State private var showingShareAudio = false
 
-    var body: some View {
+    private var mainColumn: some View {
         VStack(spacing: 24) {
             // Title
             // ⛔ THE (i) LIVES BESIDE THE HERO, NOT AT THE TOP OF THE SCREEN.
@@ -111,9 +111,14 @@ struct ContentView: View {
                 }
             }
 
+            // REM: one line, shrunk to fit. At his phone's larger text size the title
+            // wrapped to two lines, and that extra line helped push Meeting mode off the
+            // top (his report, 2026-10-23: "the hero image is cut off at the top").
             Text("Transcription Keeper")
                 .font(.largeTitle)
                 .fontWeight(.bold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
 
             // ⭐ STATUS ROW — ALWAYS PRESENT, INVISIBLE WHEN IDLE.
             //
@@ -166,6 +171,27 @@ struct ContentView: View {
             }
         }
         .padding()
+    }
+
+    var body: some View {
+        // ⛔ THE HERO MUST NEVER LEAVE THE TOP OF THE SCREEN.
+        //
+        // His report, 2026-10-23, build 30 on the 16e: "it cuts off for the meeting tab but
+        // comes back for the ptt tab." Meeting mode adds the sensitivity slider and the
+        // speaker count; at his text size the column became taller than the screen, and a
+        // too-tall stack centres — so it spilled off the TOP, hero and (i) first.
+        //
+        // REM: no guessed spacing numbers (the (i) history below shows where that leads).
+        // If the column fits, it is drawn exactly as before. If it does not, the same
+        // column goes in a scroll view, which starts at the top — so the hero is always
+        // seen first and the rest is a scroll away instead of off the edge.
+        ViewThatFits(in: .vertical) {
+            mainColumn
+            ScrollView {
+                mainColumn
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
         // ⛔ THE CONTAINER MUST BE THE SCREEN, OR THE INSET RIDES THE CONTENT.
         //
         // His report, 2026-09-14, on an iPhone 16e: "the (i) is under the battery and i can
