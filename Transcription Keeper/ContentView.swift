@@ -263,27 +263,18 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: .bottomTrailing) {
-            if strip > 0 {
-                VStack(spacing: 16) {
-                    if showsRecordControls {
-                        recordControl(diameter: strip - 16, narrow: true)
-                    }
-                }
-                .frame(width: strip)
-                .padding(.bottom)
-                // Into the strip: the overlay is laid out inside the safe area, and the
-                // strip is the trailing inset, so it moves right by exactly that inset.
-                .offset(x: strip)
-            }
-        }
         .overlay(alignment: .topTrailing) {
             if strip > 0 {
-                // His, 2026-10-26: "now the tabs and PTT are too low" — they ride up
-                // with the (i), the red button alone stays at the bottom.
+                // His, 2026-10-26: "now the tabs and PTT are too low", then "have the red
+                // PTT below the (i) but above (meeting)(PTT)". One stack from under the
+                // clock: (i), red button, Meeting, PTT.
+                //
+                // Into the strip: the overlay is laid out inside the safe area, and the
+                // strip is the trailing inset, so it moves right by exactly that inset.
                 VStack(spacing: 16) {
                     infoButton
                     if showsRecordControls {
+                        recordControl(diameter: strip - 16, narrow: true)
                         stackedModePicker(width: strip - 8)
                     }
                 }
