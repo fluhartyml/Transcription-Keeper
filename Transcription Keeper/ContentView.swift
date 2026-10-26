@@ -368,6 +368,9 @@ struct ContentView: View {
     /// (his screens 2 and 4) a fixed 100 pt image touched the bottom edge; on the Duo open
     /// he asked "can you make the hero larger?". A sixth of the height: about 78 pt
     /// sideways on the front screen, about 158 on the Duo open. Claude's number, not his.
+    /// Then his: "can you do four times what it was?" — 400 pt (4 × the original 100)
+    /// on screens at least 900 pt tall, the Duo open in portrait (951) and large iPads.
+    /// Shorter screens keep the sixth; 400 cannot fit sideways on the front screen (466).
     private func wideCenterColumn(screenHeight: CGFloat) -> some View {
         VStack(spacing: 20) {
             if showingResults && !transcriptionService.isTranscribing {
@@ -386,7 +389,7 @@ struct ContentView: View {
             errorText
 
             // His, 2026-10-26: sideways matches upright — hero, then the title under it.
-            heroImage(size: screenHeight / 6)
+            heroImage(size: screenHeight >= 900 ? 400 : screenHeight / 6)
             titleText
         }
         .padding()
