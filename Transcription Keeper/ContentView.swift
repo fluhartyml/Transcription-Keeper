@@ -213,11 +213,19 @@ struct ContentView: View {
     // least-used control, and next to a hold-to-talk button a slip would open About
     // mid-take.
     //
-    // ⚠️ NOT LITERALLY UNDER THE CLOCK. On the front screen iOS reports the clock column
-    // only as an 84 pt trailing inset down the whole edge — no height for the clock itself
-    // (the status-bar frame reads 466 × 2). Sitting under it would need a guessed number,
-    // which is how the (i) ended up under the battery before. The rail sits beside it.
-    private func wideLayout(screenHeight: CGFloat) -> some View {
+    // ⭐ TWO FRAMES ON THE FRONT SCREEN. His design, 2026-10-26: "left frame would have
+    // everyentity that you see on my screen now and thr right frame has the clock the
+    // battery circle with signal strenth circle thing where you could move the (i) tabs
+    // and revord button to live in the right tab".
+    //
+    // iOS reports that right frame as a trailing safe-area inset (84 pt on the front
+    // screen upright) but gives no height for the clock at its top — the status-bar frame
+    // reads 466 × 2. So the controls are stacked UP FROM THE BOTTOM: red button, then
+    // Meeting/PTT, then (i). They land under the clock without anyone knowing its height,
+    // which is the guess that once put the (i) under the battery.
+    //
+    // No strip (sideways, the Duo open, iPad): the 130 pt rail beside the centre, (i) on top.
+    private func wideLayout(screenHeight: CGFloat, strip: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 0) {
             ViewThatFits(in: .vertical) {
                 wideCenterColumn(screenHeight: screenHeight)
@@ -226,44 +234,73 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-            VStack(spacing: 16) {
-                infoButton
-                if !(showingResults && !transcriptionService.isTranscribing) {
-                    stackedModePicker
-                }
-                Spacer(minLength: 24)
-                if !(showingResults && !transcriptionService.isTranscribing) {
-                    if usePushToTalk {
-                        pushToTalkControl
-                    } else {
-                        classicRecordControl
+            if strip == 0 {
+                VStack(spacing: 16) {
+                    infoButton
+                    if showsRecordControls {
+                        stackedModePicker(width: 100)
+                    }
+                    Spacer(minLength: 24)
+                    if showsRecordControls {
+                        recordControl(diameter: 96, narrow: false)
                     }
                 }
+                .frame(width: 130)
+                .padding(.vertical)
             }
-            .frame(width: 130)
-            .padding(.vertical)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottomTrailing) {
+            if strip > 0 {
+                VStack(spacing: 16) {
+                    infoButton
+                    if showsRecordControls {
+                        stackedModePicker(width: strip - 8)
+                        recordControl(diameter: strip - 16, narrow: true)
+                    }
+                }
+                .frame(width: strip)
+                .padding(.bottom)
+                // Into the strip: the overlay is laid out inside the safe area, and the
+                // strip is the trailing inset, so it moves right by exactly that inset.
+                .offset(x: strip)
+            }
+        }
+    }
+
+    private var showsRecordControls: Bool {
+        !(showingResults && !transcriptionService.isTranscribing)
+    }
+
+    @ViewBuilder
+    private func recordControl(diameter: CGFloat, narrow: Bool) -> some View {
+        if usePushToTalk {
+            pushToTalkControl(diameter: diameter, narrow: narrow)
+        } else {
+            classicRecordControl(diameter: narrow ? diameter : 80, narrow: narrow)
+        }
     }
 
     /// Meeting / PTT stacked, because the rail is too narrow for side-by-side tabs.
     /// Same rule as the segmented picker: no switching mid-take.
-    private var stackedModePicker: some View {
+    private func stackedModePicker(width: CGFloat) -> some View {
         VStack(spacing: 8) {
-            modeButton("Meeting", pushToTalk: false)
-            modeButton("PTT", pushToTalk: true)
+            modeButton("Meeting", pushToTalk: false, width: width)
+            modeButton("PTT", pushToTalk: true, width: width)
         }
         .disabled(recorder.isSessionActive || transcriptionService.isTranscribing)
     }
 
-    private func modeButton(_ title: String, pushToTalk: Bool) -> some View {
+    private func modeButton(_ title: String, pushToTalk: Bool, width: CGFloat) -> some View {
         let selected = usePushToTalk == pushToTalk
         return Button {
             usePushToTalk = pushToTalk
         } label: {
             Text(title)
                 .font(.subheadline.weight(selected ? .semibold : .regular))
-                .frame(width: 100, height: 44)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: width, height: 44)
                 .background(selected ? Color.accentColor.opacity(0.15) : Color.gray.opacity(0.12),
                             in: Capsule())
                 .foregroundStyle(selected ? Color.accentColor : Color.primary)
@@ -327,7 +364,9 @@ struct ContentView: View {
             let screenWidth = geometry.size.width + insets.leading + insets.trailing
             let screenHeight = geometry.size.height + insets.top + insets.bottom
             if screenWidth > screenHeight * 0.6 {
-                wideLayout(screenHeight: screenHeight)
+                // Only upright: sideways, the trailing inset is the camera's, not a clock strip.
+                wideLayout(screenHeight: screenHeight,
+                           strip: screenHeight > screenWidth ? insets.trailing : 0)
             } else {
                 ViewThatFits(in: .vertical) {
                     mainColumn
@@ -560,14 +599,20 @@ struct ContentView: View {
         .padding(.horizontal, 30)
     }
 
-    private var pushToTalkControl: some View {
-        VStack(spacing: 24) {
-            pushToTalkButton
+    private var pushToTalkControl: some View { pushToTalkControl(diameter: 96) }
+
+    /// `narrow` is the Duo's 84 pt clock strip: the wording gets two lines at a fixed
+    /// height there, so "Slide down to cancel" fits without the label changing size.
+    private func pushToTalkControl(diameter: CGFloat, narrow: Bool = false) -> some View {
+        VStack(spacing: narrow ? 12 : 24) {
+            pushToTalkButton(diameter: diameter)
 
             Text(pushToTalkLabel)
-                .font(.caption)
+                .font(narrow ? .caption2 : .caption)
+                .multilineTextAlignment(.center)
+                .lineLimit(narrow ? 2 : 1)
                 .foregroundStyle(willCancel ? Color.red : Color.secondary)
-                .frame(height: 18)
+                .frame(height: narrow ? 30 : 18)
                 .animation(.easeInOut(duration: 0.15), value: willCancel)
         }
     }
@@ -589,17 +634,17 @@ struct ContentView: View {
     /// The cancel still works exactly as before — the gesture measures how far his thumb
     /// has travelled. It simply no longer drags the instrument along with it. A machine
     /// you operate without looking has to be where you left it.
-    private var pushToTalkButton: some View {
+    private func pushToTalkButton(diameter: CGFloat) -> some View {
         ZStack {
             Circle()
                 .fill(willCancel ? Color.gray : Color.red)
-                .frame(width: 96, height: 96)
+                .frame(width: diameter, height: diameter)
 
             Image(systemName: willCancel ? "xmark" : "mic.fill")
-                .font(.system(size: 34, weight: .semibold))
+                .font(.system(size: diameter * 0.35, weight: .semibold))
                 .foregroundStyle(.white)
         }
-        .frame(width: 110, height: 110)
+        .frame(width: diameter + 14, height: diameter + 14)
         .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -792,23 +837,25 @@ struct ContentView: View {
         .padding(.horizontal, 30)
     }
 
-    private var classicRecordControl: some View {
-        VStack(spacing: 24) {
+    private var classicRecordControl: some View { classicRecordControl(diameter: 80) }
+
+    private func classicRecordControl(diameter: CGFloat, narrow: Bool = false) -> some View {
+        VStack(spacing: narrow ? 12 : 24) {
             // Record Button
             Button(action: toggleRecording) {
                 ZStack {
                     Circle()
                         .fill(recorder.isSessionActive ? Color.red : Color.red.opacity(0.8))
-                        .frame(width: 80, height: 80)
+                        .frame(width: diameter, height: diameter)
 
                     if recorder.isSessionActive {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color.white)
-                            .frame(width: 30, height: 30)
+                            .frame(width: diameter * 0.375, height: diameter * 0.375)
                     } else {
                         Circle()
                             .fill(Color.white)
-                            .frame(width: 30, height: 30)
+                            .frame(width: diameter * 0.375, height: diameter * 0.375)
                     }
                 }
             }
@@ -816,8 +863,11 @@ struct ContentView: View {
             .disabled(transcriptionService.isTranscribing)
 
             Text(recorder.isSessionActive ? "Tap to Stop" : "Tap to Record")
-                .font(.caption)
+                .font(narrow ? .caption2 : .caption)
+                .multilineTextAlignment(.center)
+                .lineLimit(narrow ? 2 : 1)
                 .foregroundStyle(.secondary)
+                .frame(height: narrow ? 30 : nil)
         }
     }
 
