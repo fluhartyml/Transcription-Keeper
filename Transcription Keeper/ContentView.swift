@@ -364,10 +364,10 @@ struct ContentView: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    /// REM: the hero shrinks when the screen is short. Sideways on the Duo's front screen
-    /// (his screens 2 and 4) the 100 pt image touched the bottom edge. A seventh of the
-    /// screen height keeps it 100 on the tall screens and about 66 sideways; Claude's
-    /// number, not his.
+    /// REM: the hero scales with the screen height. Sideways on the Duo's front screen
+    /// (his screens 2 and 4) a fixed 100 pt image touched the bottom edge; on the Duo open
+    /// he asked "can you make the hero larger?". A sixth of the height: about 78 pt
+    /// sideways on the front screen, about 158 on the Duo open. Claude's number, not his.
     private func wideCenterColumn(screenHeight: CGFloat) -> some View {
         VStack(spacing: 20) {
             if showingResults && !transcriptionService.isTranscribing {
@@ -386,7 +386,7 @@ struct ContentView: View {
             errorText
 
             // His, 2026-10-26: sideways matches upright — hero, then the title under it.
-            heroImage(size: min(100, screenHeight / 7))
+            heroImage(size: screenHeight / 6)
             titleText
         }
         .padding()
