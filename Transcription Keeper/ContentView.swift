@@ -93,67 +93,13 @@ struct ContentView: View {
             // Aligned to the hero image it never touches that region at all, so there is
             // no geometry left to get wrong and nothing to re-tune per device.
             ZStack(alignment: .topTrailing) {
-                Image("KnightMicWaveform")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 100, height: 100)
-                    .cornerRadius(20)
-                    .frame(maxWidth: .infinity)
-
-                Button {
-                    showingAbout = true
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 30, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Circle())
-                }
+                heroImage
+                infoButton
             }
 
-            // REM: one line, shrunk to fit. At his phone's larger text size the title
-            // wrapped to two lines, and that extra line helped push Meeting mode off the
-            // top (his report, 2026-10-23: "the hero image is cut off at the top").
-            Text("Transcription Keeper")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+            titleText
 
-            // ⭐ STATUS ROW — ALWAYS PRESENT, INVISIBLE WHEN IDLE.
-            //
-            // MICHAEL FOUND THIS, 2026-09-08, after three wrong diagnoses from me:
-            // "i found it, its the 'listening. ..' it causes everything to slide down."
-            // It was wrapped in `if recorder.isSessionActive`, so starting a take INSERTED
-            // a row at the top of the screen and pushed the entire layout down — including
-            // the push-to-talk button, under a thumb that had not moved, in the direction
-            // that means cancel.
-            //
-            // And the fix is his too: "maybe have invisable letters." The row is now always
-            // in the layout at a fixed height; at rest the dot and the letters are simply
-            // drawn in clear. The space is occupied whether or not anything is showing, so
-            // there is nothing left that can move.
-            HStack(spacing: 8) {
-                if transcriptionService.isTranscribing {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text(transcriptionService.statusMessage)
-                        .font(.headline)
-                        .foregroundStyle(.blue)
-                } else {
-                    Circle()
-                        .fill(statusDotColor)
-                        .frame(width: 12, height: 12)
-                    Text(statusText)
-                        .font(.headline)
-                        .foregroundStyle(statusTextColor)
-                }
-            }
-            // ⚠️ NO FORCED HEIGHT. Clamping this to 22pt made ".headline" text draw OUTSIDE
-            // its frame — SwiftUI overflows rather than shrinking — and "Listening..."
-            // landed on top of the mode picker. His report: "listening appears over the
-            // tabs." The row does not need a clamp: it is always in the layout now, with
-            // the same font in every state, so its height is already constant.
+            statusRow
 
             // Show results or recording UI
             if showingResults && !transcriptionService.isTranscribing {
@@ -162,13 +108,148 @@ struct ContentView: View {
                 recordingView
             }
 
-            // Error display
-            if let error = recorder.errorMessage ?? transcriptionService.errorMessage {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding()
+            errorText
+        }
+        .padding()
+    }
+
+    private var heroImage: some View {
+        Image("KnightMicWaveform")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 100, height: 100)
+            .cornerRadius(20)
+            .frame(maxWidth: .infinity)
+    }
+
+    private var infoButton: some View {
+        Button {
+            showingAbout = true
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 30, weight: .regular))
+                .foregroundStyle(.secondary)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+    }
+
+    // REM: one line, shrunk to fit. At his phone's larger text size the title
+    // wrapped to two lines, and that extra line helped push Meeting mode off the
+    // top (his report, 2026-10-23: "the hero image is cut off at the top").
+    private var titleText: some View {
+        Text("Transcription Keeper")
+            .font(.largeTitle)
+            .fontWeight(.bold)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+    }
+
+    @ViewBuilder
+    private var errorText: some View {
+        if let error = recorder.errorMessage ?? transcriptionService.errorMessage {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .padding()
+        }
+    }
+
+    private var statusRow: some View {
+        // ⭐ STATUS ROW — ALWAYS PRESENT, INVISIBLE WHEN IDLE.
+        //
+        // MICHAEL FOUND THIS, 2026-09-08, after three wrong diagnoses from me:
+        // "i found it, its the 'listening. ..' it causes everything to slide down."
+        // It was wrapped in `if recorder.isSessionActive`, so starting a take INSERTED
+        // a row at the top of the screen and pushed the entire layout down — including
+        // the push-to-talk button, under a thumb that had not moved, in the direction
+        // that means cancel.
+        //
+        // And the fix is his too: "maybe have invisable letters." The row is now always
+        // in the layout at a fixed height; at rest the dot and the letters are simply
+        // drawn in clear. The space is occupied whether or not anything is showing, so
+        // there is nothing left that can move.
+        HStack(spacing: 8) {
+            if transcriptionService.isTranscribing {
+                ProgressView()
+                    .scaleEffect(0.8)
+                Text(transcriptionService.statusMessage)
+                    .font(.headline)
+                    .foregroundStyle(.blue)
+            } else {
+                Circle()
+                    .fill(statusDotColor)
+                    .frame(width: 12, height: 12)
+                Text(statusText)
+                    .font(.headline)
+                    .foregroundStyle(statusTextColor)
             }
+        }
+        // ⚠️ NO FORCED HEIGHT. Clamping this to 22pt made ".headline" text draw OUTSIDE
+        // its frame — SwiftUI overflows rather than shrinking — and "Listening..."
+        // landed on top of the mode picker. His report: "listening appears over the
+        // tabs." The row does not need a clamp: it is always in the layout now, with
+        // the same font in every state, so its height is already constant.
+    }
+
+    // MARK: - Wide layout (iPhone Duo, landscape, iPad)
+    //
+    // His layout, 2026-10-26, looking at the iPhone Duo simulator: "that red button needs
+    // to be close to the human finger. on the duo the optomization language has setting
+    // buttons and tools often used on the right under the wifi batteryy and signal dots" ·
+    // "lets move the red record button under the time just shift right but not up and
+    // lower the transcription keeper below the audio level with the hero image below that"
+    // · "the 00:00:00 would be in the center above transcription keeper".
+    //
+    // Centre, top to bottom: mode, audio level, status, counter, title, hero.
+    // Right rail: the (i) under the status bar, the record button at the bottom where the
+    // thumb is. The rail is its own column, so nothing in the centre can move the button.
+    private var wideLayout: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ViewThatFits(in: .vertical) {
+                wideCenterColumn
+                ScrollView { wideCenterColumn }
+                    .scrollBounceBehavior(.basedOnSize)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+            VStack(spacing: 0) {
+                infoButton
+                Spacer(minLength: 24)
+                if !(showingResults && !transcriptionService.isTranscribing) {
+                    if usePushToTalk {
+                        pushToTalkControl
+                    } else {
+                        classicRecordControl
+                    }
+                }
+            }
+            .frame(width: 130)
+            .padding(.vertical)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var wideCenterColumn: some View {
+        VStack(spacing: 20) {
+            if showingResults && !transcriptionService.isTranscribing {
+                resultsView
+            } else {
+                modePicker
+                if usePushToTalk {
+                    pushToTalkMeter
+                } else {
+                    classicMeter
+                    speakerCount
+                }
+                statusRow
+                durationDisplay
+            }
+
+            errorText
+
+            titleText
+            heroImage
         }
         .padding()
     }
@@ -185,12 +266,25 @@ struct ContentView: View {
         // If the column fits, it is drawn exactly as before. If it does not, the same
         // column goes in a scroll view, which starts at the top — so the hero is always
         // seen first and the rest is a scroll away instead of off the edge.
-        ViewThatFits(in: .vertical) {
-            mainColumn
-            ScrollView {
-                mainColumn
+        //
+        // REM: which layout is decided by the SHAPE of the space, not the device name —
+        // the iPhone Duo notes: "size classes not idioms". A regular iPhone in portrait is
+        // about twice as tall as it is wide (0.46 on the largest); the Duo's outer screen,
+        // the Duo open, landscape and iPad are all wider than 0.6, and get the side rail.
+        // The 0.6 line is Claude's choice, not his.
+        GeometryReader { geometry in
+            if geometry.size.width > geometry.size.height * 0.6 {
+                wideLayout
+            } else {
+                ViewThatFits(in: .vertical) {
+                    mainColumn
+                    ScrollView {
+                        mainColumn
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .scrollBounceBehavior(.basedOnSize)
         }
         // ⛔ THE CONTAINER MUST BE THE SCREEN, OR THE INSET RIDES THE CONTENT.
         //
@@ -342,16 +436,7 @@ struct ContentView: View {
 
     private var recordingView: some View {
         VStack(spacing: 0) {
-            Picker("Mode", selection: $usePushToTalk) {
-                Text("Meeting").tag(false)
-                Text("PTT").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 30)
-            .padding(.top, 8)
-            // Switching modes mid-take would leave a recording running with no control
-            // on screen to stop it. Close the take first, then change the instrument.
-            .disabled(recorder.isSessionActive || transcriptionService.isTranscribing)
+            modePicker
 
             if usePushToTalk {
                 pushToTalkRecordingView
@@ -361,35 +446,60 @@ struct ContentView: View {
         }
     }
 
+    private var modePicker: some View {
+        Picker("Mode", selection: $usePushToTalk) {
+            Text("Meeting").tag(false)
+            Text("PTT").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 30)
+        .padding(.top, 8)
+        // Switching modes mid-take would leave a recording running with no control
+        // on screen to stop it. Close the take first, then change the instrument.
+        .disabled(recorder.isSessionActive || transcriptionService.isTranscribing)
+    }
+
     private var pushToTalkRecordingView: some View {
         VStack(spacing: 24) {
             Spacer()
 
-            // The level meter STAYS. With the threshold gone it is no longer a control,
-            // it is the only proof the microphone is hearing anything at all.
-            VStack(spacing: 8) {
-                Text("Audio Level")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.3))
-
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(levelColor)
-                            .frame(width: geometry.size.width * CGFloat(recorder.currentLevel))
-                    }
-                }
-                .frame(height: 24)
-            }
-            .padding(.horizontal, 30)
+            pushToTalkMeter
 
             durationDisplay
 
             Spacer()
 
+            pushToTalkControl
+
+            Spacer()
+        }
+    }
+
+    // The level meter STAYS. With the threshold gone it is no longer a control,
+    // it is the only proof the microphone is hearing anything at all.
+    private var pushToTalkMeter: some View {
+        VStack(spacing: 8) {
+            Text("Audio Level")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.3))
+
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(levelColor)
+                        .frame(width: geometry.size.width * CGFloat(recorder.currentLevel))
+                }
+            }
+            .frame(height: 24)
+        }
+        .padding(.horizontal, 30)
+    }
+
+    private var pushToTalkControl: some View {
+        VStack(spacing: 24) {
             pushToTalkButton
 
             Text(pushToTalkLabel)
@@ -397,8 +507,6 @@ struct ContentView: View {
                 .foregroundStyle(willCancel ? Color.red : Color.secondary)
                 .frame(height: 18)
                 .animation(.easeInOut(duration: 0.15), value: willCancel)
-
-            Spacer()
         }
     }
 
@@ -561,49 +669,7 @@ struct ContentView: View {
         VStack(spacing: 24) {
             Spacer()
 
-            // Level Meter with Threshold
-            VStack(spacing: 8) {
-                Text("Audio Level")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        // Background
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.3))
-
-                        // Level indicator
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(levelColor)
-                            .frame(width: geometry.size.width * CGFloat(recorder.currentLevel))
-
-                        // Threshold line
-                        Rectangle()
-                            .fill(Color.white)
-                            .frame(width: 2)
-                            .offset(x: geometry.size.width * CGFloat(recorder.threshold) - 1)
-                    }
-                }
-                .frame(height: 24)
-
-                // Threshold Slider
-                HStack {
-                    Image(systemName: "speaker.fill")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                    Slider(value: $recorder.threshold, in: 0.05...0.8)
-                        .tint(.orange)
-                    Image(systemName: "speaker.wave.3.fill")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                }
-
-                Text("Sensitivity Threshold: \(Int(recorder.threshold * 100))%")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 30)
+            classicMeter
 
             speakerCount
 
@@ -612,6 +678,60 @@ struct ContentView: View {
 
             Spacer()
 
+            classicRecordControl
+
+            Spacer()
+        }
+    }
+
+    private var classicMeter: some View {
+        // Level Meter with Threshold
+        VStack(spacing: 8) {
+            Text("Audio Level")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.3))
+
+                    // Level indicator
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(levelColor)
+                        .frame(width: geometry.size.width * CGFloat(recorder.currentLevel))
+
+                    // Threshold line
+                    Rectangle()
+                        .fill(Color.white)
+                        .frame(width: 2)
+                        .offset(x: geometry.size.width * CGFloat(recorder.threshold) - 1)
+                }
+            }
+            .frame(height: 24)
+
+            // Threshold Slider
+            HStack {
+                Image(systemName: "speaker.fill")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                Slider(value: $recorder.threshold, in: 0.05...0.8)
+                    .tint(.orange)
+                Image(systemName: "speaker.wave.3.fill")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+
+            Text("Sensitivity Threshold: \(Int(recorder.threshold * 100))%")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 30)
+    }
+
+    private var classicRecordControl: some View {
+        VStack(spacing: 24) {
             // Record Button
             Button(action: toggleRecording) {
                 ZStack {
@@ -636,8 +756,6 @@ struct ContentView: View {
             Text(recorder.isSessionActive ? "Tap to Stop" : "Tap to Record")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-            Spacer()
         }
     }
 
