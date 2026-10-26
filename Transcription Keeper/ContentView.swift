@@ -659,18 +659,27 @@ struct ContentView: View {
 
     /// `narrow` is the Duo's 84 pt clock strip: the wording gets two lines at a fixed
     /// height there, so "Slide down to cancel" fits without the label changing size.
+    //
+    // ⭐ IN THE STRIP THE LABEL GOES ABOVE THE BUTTON. His, 2026-10-26: "hold to talk can
+    // represent the line do break your eyes from seeing the record button is not centered
+    // with the (i)". It also stays readable while held — the thumb and hand cover what is
+    // below the button, and "Slide down to cancel" is the line you need to see then.
     private func pushToTalkControl(diameter: CGFloat, narrow: Bool = false) -> some View {
         VStack(spacing: narrow ? 12 : 24) {
+            if narrow { pushToTalkText(narrow: true) }
             pushToTalkButton(diameter: diameter)
-
-            Text(pushToTalkLabel)
-                .font(narrow ? .caption2 : .caption)
-                .multilineTextAlignment(.center)
-                .lineLimit(narrow ? 2 : 1)
-                .foregroundStyle(willCancel ? Color.red : Color.secondary)
-                .frame(height: narrow ? 30 : 18)
-                .animation(.easeInOut(duration: 0.15), value: willCancel)
+            if !narrow { pushToTalkText(narrow: false) }
         }
+    }
+
+    private func pushToTalkText(narrow: Bool) -> some View {
+        Text(pushToTalkLabel)
+            .font(narrow ? .caption2 : .caption)
+            .multilineTextAlignment(.center)
+            .lineLimit(narrow ? 2 : 1)
+            .foregroundStyle(willCancel ? Color.red : Color.secondary)
+            .frame(height: narrow ? 30 : 18)
+            .animation(.easeInOut(duration: 0.15), value: willCancel)
     }
 
     /// ⚠️ THIS VIEW DOES NOT MOVE. NOT BY A POINT, NOT FOR A MOMENT.
@@ -897,6 +906,8 @@ struct ContentView: View {
 
     private func classicRecordControl(diameter: CGFloat, narrow: Bool = false) -> some View {
         VStack(spacing: narrow ? 12 : 24) {
+            if narrow { classicRecordText(narrow: true) }
+
             // Record Button
             Button(action: toggleRecording) {
                 ZStack {
@@ -918,13 +929,17 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .disabled(transcriptionService.isTranscribing)
 
-            Text(recorder.isSessionActive ? "Tap to Stop" : "Tap to Record")
-                .font(narrow ? .caption2 : .caption)
-                .multilineTextAlignment(.center)
-                .lineLimit(narrow ? 2 : 1)
-                .foregroundStyle(.secondary)
-                .frame(height: narrow ? 30 : nil)
+            if !narrow { classicRecordText(narrow: false) }
         }
+    }
+
+    private func classicRecordText(narrow: Bool) -> some View {
+        Text(recorder.isSessionActive ? "Tap to Stop" : "Tap to Record")
+            .font(narrow ? .caption2 : .caption)
+            .multilineTextAlignment(.center)
+            .lineLimit(narrow ? 2 : 1)
+            .foregroundStyle(.secondary)
+            .frame(height: narrow ? 30 : nil)
     }
 
     // MARK: - Results View
