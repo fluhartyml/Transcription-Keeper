@@ -225,14 +225,27 @@ struct ContentView: View {
     // which is the guess that once put the (i) under the battery.
     //
     // No strip (sideways, the Duo open, iPad): the 130 pt rail beside the centre, (i) on top.
-    private func wideLayout(screenHeight: CGFloat, strip: CGFloat) -> some View {
+    //
+    // ⚠️ THE ONE MEASURED NUMBER: the (i) sits 150 pt down, right under the Wi-Fi/battery
+    // circle. His, 2026-10-26: "the (i) needs to be up right under the signal strength" —
+    // the side button with the fingerprint reader is at that height, so the thumb is
+    // already there. 150 was measured off the iPhone Duo simulator (iOS 27.1); a real Duo
+    // or a larger text size may put the clock lower. He accepted that risk: "we will
+    // probably have to redo all of this in november."
+    private let clockStripClearance: CGFloat = 150
+
+    private func wideLayout(screenHeight: CGFloat, strip: CGFloat, topInset: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 0) {
-            ViewThatFits(in: .vertical) {
-                wideCenterColumn(screenHeight: screenHeight)
-                ScrollView { wideCenterColumn(screenHeight: screenHeight) }
-                    .scrollBounceBehavior(.basedOnSize)
+            if strip > 0 {
+                stripCenterColumn
+            } else {
+                ViewThatFits(in: .vertical) {
+                    wideCenterColumn(screenHeight: screenHeight)
+                    ScrollView { wideCenterColumn(screenHeight: screenHeight) }
+                        .scrollBounceBehavior(.basedOnSize)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
             if strip == 0 {
                 VStack(spacing: 16) {
@@ -253,7 +266,6 @@ struct ContentView: View {
         .overlay(alignment: .bottomTrailing) {
             if strip > 0 {
                 VStack(spacing: 16) {
-                    infoButton
                     if showsRecordControls {
                         stackedModePicker(width: strip - 8)
                         recordControl(diameter: strip - 16, narrow: true)
@@ -266,6 +278,43 @@ struct ContentView: View {
                 .offset(x: strip)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if strip > 0 {
+                infoButton
+                    .frame(width: strip)
+                    .padding(.top, max(0, clockStripClearance - topInset))
+                    .offset(x: strip)
+            }
+        }
+    }
+
+    /// The left frame on the Duo's front screen. His, 2026-10-26: "Transcription Keeper
+    /// title should be on the bottom with the hero image center screen". Meter and counter
+    /// stay at the top, the hero takes the middle, the title sits at the bottom beside the
+    /// record button.
+    private var stripCenterColumn: some View {
+        VStack(spacing: 20) {
+            if showingResults && !transcriptionService.isTranscribing {
+                resultsView
+                errorText
+            } else {
+                if usePushToTalk {
+                    pushToTalkMeter
+                } else {
+                    classicMeter
+                    speakerCount
+                }
+                statusRow
+                durationDisplay
+                errorText
+                Spacer(minLength: 0)
+                heroImage
+                Spacer(minLength: 0)
+                titleText
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var showsRecordControls: Bool {
@@ -366,7 +415,8 @@ struct ContentView: View {
             if screenWidth > screenHeight * 0.6 {
                 // Only upright: sideways, the trailing inset is the camera's, not a clock strip.
                 wideLayout(screenHeight: screenHeight,
-                           strip: screenHeight > screenWidth ? insets.trailing : 0)
+                           strip: screenHeight > screenWidth ? insets.trailing : 0,
+                           topInset: insets.top)
             } else {
                 ViewThatFits(in: .vertical) {
                     mainColumn
