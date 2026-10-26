@@ -232,7 +232,15 @@ struct ContentView: View {
     // already there. 150 was measured off the iPhone Duo simulator (iOS 27.1); a real Duo
     // or a larger text size may put the clock lower. He accepted that risk: "we will
     // probably have to redo all of this in november."
-    private let clockStripClearance: CGFloat = 150
+    private let clockStripClearance: CGFloat = 155
+
+    /// His, 2026-10-26: "the (i) is off center and a few points too close to the circle,
+    /// the ciecle should have close to the same distance from the time to the top as the
+    /// (i) to the bottom". Measured off the simulator at 3x: clock 86–99 pt, circle top
+    /// 110 (an 11 pt gap), its dots end at 151, the (i) glyph started at 157 — 6 pt. So
+    /// 150 → 155. The system centres the circle at x 418, the strip's middle is 424, so
+    /// the (i) moves 6 pt left to sit under it.
+    private let clockStripCentreCorrection: CGFloat = -6
 
     private func wideLayout(screenHeight: CGFloat, strip: CGFloat, topInset: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 0) {
@@ -273,6 +281,7 @@ struct ContentView: View {
                 // strip is the trailing inset, so it moves right by exactly that inset.
                 VStack(spacing: 16) {
                     infoButton
+                        .offset(x: clockStripCentreCorrection)
                     if showsRecordControls {
                         recordControl(diameter: strip - 16, narrow: true)
                         stackedModePicker(width: strip - 8)
