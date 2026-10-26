@@ -272,8 +272,16 @@ struct ContentView: View {
         // about twice as tall as it is wide (0.46 on the largest); the Duo's outer screen,
         // the Duo open, landscape and iPad are all wider than 0.6, and get the side rail.
         // The 0.6 line is Claude's choice, not his.
+        //
+        // ⚠️ MEASURE THE WHOLE SCREEN, SAFE AREA INCLUDED. The Duo's front screen puts the
+        // clock and Wi-Fi in a column down the right side, which comes off the safe width —
+        // measured inside it, the front screen (466 × 678 pt, 0.69) read as a regular
+        // iPhone and kept the old layout. His screen, 2026-10-26, caught it.
         GeometryReader { geometry in
-            if geometry.size.width > geometry.size.height * 0.6 {
+            let insets = geometry.safeAreaInsets
+            let screenWidth = geometry.size.width + insets.leading + insets.trailing
+            let screenHeight = geometry.size.height + insets.top + insets.bottom
+            if screenWidth > screenHeight * 0.6 {
                 wideLayout
             } else {
                 ViewThatFits(in: .vertical) {
