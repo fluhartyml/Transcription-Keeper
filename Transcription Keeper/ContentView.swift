@@ -113,11 +113,13 @@ struct ContentView: View {
         .padding()
     }
 
-    private var heroImage: some View {
+    private var heroImage: some View { heroImage(size: 100) }
+
+    private func heroImage(size: CGFloat) -> some View {
         Image("KnightMicWaveform")
             .resizable()
             .scaledToFit()
-            .frame(width: 100, height: 100)
+            .frame(width: size, height: size)
             .cornerRadius(20)
             .frame(maxWidth: .infinity)
     }
@@ -204,17 +206,31 @@ struct ContentView: View {
     // Centre, top to bottom: mode, audio level, status, counter, title, hero.
     // Right rail: the (i) under the status bar, the record button at the bottom where the
     // thumb is. The rail is its own column, so nothing in the centre can move the button.
-    private var wideLayout: some View {
+    //
+    // His, after seeing all four front-screen positions: "the i should be under the time
+    // signal strength column probably the tabs to so you can navigate with your thumb" ·
+    // asked whether the (i) belongs at the bottom, he kept it at the top — it is the
+    // least-used control, and next to a hold-to-talk button a slip would open About
+    // mid-take.
+    //
+    // ⚠️ NOT LITERALLY UNDER THE CLOCK. On the front screen iOS reports the clock column
+    // only as an 84 pt trailing inset down the whole edge — no height for the clock itself
+    // (the status-bar frame reads 466 × 2). Sitting under it would need a guessed number,
+    // which is how the (i) ended up under the battery before. The rail sits beside it.
+    private func wideLayout(screenHeight: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 0) {
             ViewThatFits(in: .vertical) {
-                wideCenterColumn
-                ScrollView { wideCenterColumn }
+                wideCenterColumn(screenHeight: screenHeight)
+                ScrollView { wideCenterColumn(screenHeight: screenHeight) }
                     .scrollBounceBehavior(.basedOnSize)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-            VStack(spacing: 0) {
+            VStack(spacing: 16) {
                 infoButton
+                if !(showingResults && !transcriptionService.isTranscribing) {
+                    stackedModePicker
+                }
                 Spacer(minLength: 24)
                 if !(showingResults && !transcriptionService.isTranscribing) {
                     if usePushToTalk {
@@ -230,12 +246,41 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var wideCenterColumn: some View {
+    /// Meeting / PTT stacked, because the rail is too narrow for side-by-side tabs.
+    /// Same rule as the segmented picker: no switching mid-take.
+    private var stackedModePicker: some View {
+        VStack(spacing: 8) {
+            modeButton("Meeting", pushToTalk: false)
+            modeButton("PTT", pushToTalk: true)
+        }
+        .disabled(recorder.isSessionActive || transcriptionService.isTranscribing)
+    }
+
+    private func modeButton(_ title: String, pushToTalk: Bool) -> some View {
+        let selected = usePushToTalk == pushToTalk
+        return Button {
+            usePushToTalk = pushToTalk
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(selected ? .semibold : .regular))
+                .frame(width: 100, height: 44)
+                .background(selected ? Color.accentColor.opacity(0.15) : Color.gray.opacity(0.12),
+                            in: Capsule())
+                .foregroundStyle(selected ? Color.accentColor : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// REM: the hero shrinks when the screen is short. Sideways on the Duo's front screen
+    /// (his screens 2 and 4) the 100 pt image touched the bottom edge. A seventh of the
+    /// screen height keeps it 100 on the tall screens and about 66 sideways; Claude's
+    /// number, not his.
+    private func wideCenterColumn(screenHeight: CGFloat) -> some View {
         VStack(spacing: 20) {
             if showingResults && !transcriptionService.isTranscribing {
                 resultsView
             } else {
-                modePicker
                 if usePushToTalk {
                     pushToTalkMeter
                 } else {
@@ -249,7 +294,7 @@ struct ContentView: View {
             errorText
 
             titleText
-            heroImage
+            heroImage(size: min(100, screenHeight / 7))
         }
         .padding()
     }
@@ -282,7 +327,7 @@ struct ContentView: View {
             let screenWidth = geometry.size.width + insets.leading + insets.trailing
             let screenHeight = geometry.size.height + insets.top + insets.bottom
             if screenWidth > screenHeight * 0.6 {
-                wideLayout
+                wideLayout(screenHeight: screenHeight)
             } else {
                 ViewThatFits(in: .vertical) {
                     mainColumn
@@ -398,11 +443,20 @@ struct ContentView: View {
                 } else {
                     // Glass in the shape of the glyphs: the effect is masked BY the text,
                     // so the numerals themselves are the window rather than sitting on one.
-                    Rectangle()
-                        .fill(.clear)
-                        .glassEffect(in: .rect(cornerRadius: 0))
-                        .mask { counterText }
-                        .frame(height: 58)
+                    //
+                    // REM: a faint copy of the digits sits under the glass. On a white
+                    // background glass has nothing to bend and the counter vanished (seen
+                    // on the iPhone Duo simulator, 2026-10-26). Same place, same size —
+                    // nothing moves.
+                    ZStack {
+                        counterText
+                            .foregroundStyle(.tertiary)
+                        Rectangle()
+                            .fill(.clear)
+                            .glassEffect(in: .rect(cornerRadius: 0))
+                            .mask { counterText }
+                    }
+                    .frame(height: 58)
                 }
             }
             .frame(height: 58)
