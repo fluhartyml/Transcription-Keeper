@@ -267,7 +267,6 @@ struct ContentView: View {
             if strip > 0 {
                 VStack(spacing: 16) {
                     if showsRecordControls {
-                        stackedModePicker(width: strip - 8)
                         recordControl(diameter: strip - 16, narrow: true)
                     }
                 }
@@ -280,7 +279,14 @@ struct ContentView: View {
         }
         .overlay(alignment: .topTrailing) {
             if strip > 0 {
-                infoButton
+                // His, 2026-10-26: "now the tabs and PTT are too low" — they ride up
+                // with the (i), the red button alone stays at the bottom.
+                VStack(spacing: 16) {
+                    infoButton
+                    if showsRecordControls {
+                        stackedModePicker(width: strip - 8)
+                    }
+                }
                     .frame(width: strip)
                     .padding(.top, max(0, clockStripClearance - topInset))
                     .offset(x: strip)
