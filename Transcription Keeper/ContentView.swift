@@ -385,8 +385,9 @@ struct ContentView: View {
 
             errorText
 
-            titleText
+            // His, 2026-10-26: sideways matches upright — hero, then the title under it.
             heroImage(size: min(100, screenHeight / 7))
+            titleText
         }
         .padding()
     }
