@@ -118,8 +118,6 @@ struct ContentView: View {
             }
 
             errorText
-
-            earlierButton
         }
         .padding()
     }
@@ -378,13 +376,18 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
-            } else if !documentParagraphs.isEmpty && !recorder.isSessionActive {
-                Button { showingResults = true } label: {
-                    Label(documentParagraphs.count == 1 ? "View Document · 1 paragraph" : "View Document · \(documentParagraphs.count) paragraphs",
-                          systemImage: "doc.text")
-                        .font(.system(size: 20, weight: .semibold))
+            } else if !recorder.isSessionActive {
+                if !documentParagraphs.isEmpty {
+                    Button { showingResults = true } label: {
+                        Label(documentParagraphs.count == 1 ? "View Document · 1 paragraph" : "View Document · \(documentParagraphs.count) paragraphs",
+                              systemImage: "doc.text")
+                            .font(.system(size: 20, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
+                // REM  His, 2026-10-27: "earlier recordings should be up closer to the red button" — so it lives in this
+                // REM  strip, right under the controls, instead of at the bottom of the screen.
+                earlierButton
             }
         }
         .frame(height: 110)
@@ -474,8 +477,6 @@ struct ContentView: View {
             }
 
             errorText
-
-            earlierButton
 
             // His, 2026-10-26: sideways matches upright — hero, then the title under it.
             heroImage(size: screenHeight >= 900 ? 400 : screenHeight / 6)
