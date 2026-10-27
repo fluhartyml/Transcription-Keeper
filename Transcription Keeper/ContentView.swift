@@ -21,6 +21,8 @@ struct ContentView: View {
     /// The saved copy of the document being built — nil until its first take (SavedDocuments.swift).
     @State private var currentDocument: SavedDocument?
     @State private var showingSaved = false
+    /// The document text as edited on the document screen.
+    @State private var editText = ""
     @State private var savedCount = 0
     /// Takes still on this phone — the way back to one that never transcribed (EarlierRecordingsView).
     @State private var earlierCount = 0
@@ -404,6 +406,44 @@ struct ContentView: View {
         }
         .frame(height: 110)
         .frame(maxWidth: .infinity)
+    }
+
+    /// Where the open document sits among the saved ones, newest first by when each was made.
+    private var documentPlace: (index: Int, count: Int)? {
+        let all = TranscriptStore.all().sorted { $0.created > $1.created }
+        guard let name = currentDocument?.name, let index = all.firstIndex(where: { $0.name == name }) else { return nil }
+        return (index, all.count)
+    }
+
+    /// Left (by: 1) = the next older document; right (by: -1) = the next newer.
+    private func swipeDocument(_ by: Int) {
+        guard !queueRunning else { return }
+        let all = TranscriptStore.all().sorted { $0.created > $1.created }
+        guard let name = currentDocument?.name, let index = all.firstIndex(where: { $0.name == name }),
+              all.indices.contains(index + by) else { return }
+        let next = all[index + by]
+        currentDocument = next
+        documentParagraphs = next.paragraphs
+        documentAudio = next.audioURLs
+    }
+
+    /// The edited text back into paragraphs, saved as typed.
+    private static func paragraphs(of text: String) -> [String] {
+        text.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func applyEdit() {
+        let paragraphs = Self.paragraphs(of: editText)
+        guard paragraphs != documentParagraphs else { return }
+        documentParagraphs = paragraphs
+        if var document = currentDocument {
+            document.paragraphs = paragraphs
+            document.changed = .now
+            TranscriptStore.save(document)
+            currentDocument = document
+        }
     }
 
     /// A finished take joins the queue. Record stays live; the queue transcribes one take at a time, in order.
@@ -1081,22 +1121,50 @@ struct ContentView: View {
 
     private var resultsView: some View {
         VStack(spacing: 20) {
-            // Transcription text
+            // REM  EDITABLE, AND SWIPE BETWEEN DOCUMENTS — his ask 2026-10-27: "can it have swipe left and right between
+            // REM  open transcripts? are transcripts editable incase the stt mis heard the speaker". The text is edited in
+            // REM  place and saved as typed; a blank line splits paragraphs. Swipe left = older document, right = newer,
+            // REM  in the order they were made (editing would reorder a list sorted by last change). Not while a take is
+            // REM  still transcribing into this one.
             VStack(alignment: .leading, spacing: 8) {
-                Text("Transcription")
-                    .font(.headline)
-
-                ScrollView {
-                    Text(documentParagraphs.joined(separator: "\n\n"))
-                        .font(.body)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack {
+                    Text(currentDocument?.name ?? "Transcription")
+                        .font(.system(size: 20, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Spacer()
+                    if let place = documentPlace {
+                        Text("\(place.index + 1) of \(place.count)")
+                            .font(.system(size: 18))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .frame(maxHeight: 200)
-                .padding()
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(12)
+
+                TextEditor(text: $editText)
+                    .font(.system(size: 18))
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 200, maxHeight: 320)
+                    .padding(8)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(12)
+                    .onChange(of: editText) { applyEdit() }
+                    .onChange(of: documentParagraphs, initial: true) {
+                        // Only a change from elsewhere (a new take, a swipe) rewrites the editor — never the typing itself,
+                        // or a fresh blank line for a new paragraph would vanish as it is typed.
+                        if Self.paragraphs(of: editText) != documentParagraphs {
+                            editText = documentParagraphs.joined(separator: "\n\n")
+                        }
+                    }
             }
             .padding(.horizontal)
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 40).onEnded { drag in
+                    guard abs(drag.translation.width) > abs(drag.translation.height) * 2 else { return }
+                    swipeDocument(drag.translation.width < 0 ? 1 : -1)
+                }
+            )
 
             // Share buttons
             HStack(spacing: 16) {
