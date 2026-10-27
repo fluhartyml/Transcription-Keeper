@@ -105,7 +105,9 @@ struct ContentView: View {
             statusRow
 
             // Show results or recording UI
-            if showingResults && !transcriptionService.isTranscribing {
+            if transcriptionService.isTranscribing {
+                transcribingPanel
+            } else if showingResults {
                 resultsView
             } else {
                 recordingView
@@ -327,7 +329,9 @@ struct ContentView: View {
     /// record button.
     private var stripCenterColumn: some View {
         VStack(spacing: 20) {
-            if showingResults && !transcriptionService.isTranscribing {
+            if transcriptionService.isTranscribing {
+                transcribingPanel
+            } else if showingResults {
                 resultsView
                 errorText
             } else {
@@ -350,8 +354,37 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// Hidden while transcribing — a second press then started a new take and the first never transcribed (his
+    /// report, 2026-10-27). The record button comes back with the transcript.
     private var showsRecordControls: Bool {
-        !(showingResults && !transcriptionService.isTranscribing)
+        !showingResults && !transcriptionService.isTranscribing
+    }
+
+    // REM  TRANSCRIBING, SHOWN BIG — his report 2026-10-27: after Stop "it looked like it wasnt doing anything so i pressed
+    // REM  the red button again". The panel takes the record controls' place, so there is nothing to press twice, and it
+    // REM  says the phone can be locked: the background task keeps it going (TranscriptionService).
+    private var transcribingPanel: some View {
+        VStack(spacing: 14) {
+            Text("Transcribing")
+                .font(.system(size: 30, weight: .bold))
+            ProgressView(value: transcriptionService.progress)
+                .progressViewStyle(.linear)
+                .tint(.red)
+                .scaleEffect(x: 1, y: 3)
+                .padding(.horizontal, 24)
+            if transcriptionService.audioLength > 0 {
+                Text("\(formatDuration(transcriptionService.progress * transcriptionService.audioLength)) of \(formatDuration(transcriptionService.audioLength))")
+                    .font(.system(size: 20))
+                    .monospacedDigit()
+            }
+            Text("You can lock your iPhone or switch apps. It keeps going, and the text is here when you come back.")
+                .font(.system(size: 18))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+        }
+        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -400,7 +433,9 @@ struct ContentView: View {
     /// Shorter screens keep the sixth; 400 cannot fit sideways on the front screen (466).
     private func wideCenterColumn(screenHeight: CGFloat) -> some View {
         VStack(spacing: 20) {
-            if showingResults && !transcriptionService.isTranscribing {
+            if transcriptionService.isTranscribing {
+                transcribingPanel
+            } else if showingResults {
                 resultsView
             } else {
                 if usePushToTalk {
