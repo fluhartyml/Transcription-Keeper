@@ -18,6 +18,10 @@ struct ContentView: View {
     @State private var documentAudio: [URL] = []
     @State private var takeQueue: [URL] = []
     @State private var queueRunning = false
+    /// The saved copy of the document being built — nil until its first take (SavedDocuments.swift).
+    @State private var currentDocument: SavedDocument?
+    @State private var showingSaved = false
+    @State private var savedCount = 0
     /// Takes still on this phone — the way back to one that never transcribed (EarlierRecordingsView).
     @State private var earlierCount = 0
     @State private var showingEarlier = false
@@ -386,8 +390,16 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 // REM  His, 2026-10-27: "earlier recordings should be up closer to the red button" — so it lives in this
-                // REM  strip, right under the controls, instead of at the bottom of the screen.
-                earlierButton
+                // REM  strip, right under the controls, instead of at the bottom of the screen. Saved Documents beside it.
+                HStack(spacing: 10) {
+                    if savedCount > 0 {
+                        Button { showingSaved = true } label: {
+                            Label("Saved (\(savedCount))", systemImage: "folder").font(.system(size: 18))
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    earlierButton
+                }
             }
         }
         .frame(height: 110)
@@ -395,7 +407,15 @@ struct ContentView: View {
     }
 
     /// A finished take joins the queue. Record stays live; the queue transcribes one take at a time, in order.
-    private func enqueue(_ url: URL) {
+    private func enqueue(_ taken: URL) {
+        // Saved with its document: out of the temporary folder, into the document's record.
+        let url = TranscriptStore.keep(taken)
+        var document = currentDocument ?? SavedDocument(name: TranscriptStore.newName(), created: .now, changed: .now,
+                                                        paragraphs: documentParagraphs, audio: [])
+        document.audio.append(url.lastPathComponent)
+        document.changed = .now
+        TranscriptStore.save(document)
+        currentDocument = document
         lastRecordingURL = url
         documentAudio.append(url)
         takeQueue.append(url)
@@ -408,10 +428,17 @@ struct ContentView: View {
                 let text = transcriptionService.transcription.trimmingCharacters(in: .whitespacesAndNewlines)
                 if transcriptionService.errorMessage == nil, !text.isEmpty, text != "(No speech detected)" {
                     documentParagraphs.append(text)
+                    if var document = currentDocument {
+                        document.paragraphs = documentParagraphs
+                        document.changed = .now
+                        TranscriptStore.save(document)
+                        currentDocument = document
+                    }
                 }
                 takeQueue.removeFirst()
             }
             transcriptionService.transcription = documentParagraphs.joined(separator: "\n\n")
+            savedCount = TranscriptStore.all().count
             queueRunning = false
         }
     }
@@ -581,6 +608,18 @@ struct ContentView: View {
             EarlierRecordingsView(transcribe: transcribeEarlier)
         }
         .onChange(of: recorder.isSessionActive, initial: true) { earlierCount = EarlierRecording.all().count }
+        .sheet(isPresented: $showingSaved, onDismiss: { savedCount = TranscriptStore.all().count }) {
+            SavedDocumentsView { document in
+                currentDocument = document
+                documentParagraphs = document.paragraphs
+                documentAudio = document.audioURLs
+                showingResults = true
+            }
+        }
+        .onAppear {
+            TranscriptStore.purgeExpired()
+            savedCount = TranscriptStore.all().count
+        }
         // His report, 2026-09-08: "the (i) is too small and squished under the battery."
         // Then, after more padding: "top of the (i) circle is under the battery."
         //
@@ -1129,6 +1168,7 @@ struct ContentView: View {
         showingResults = false
         documentParagraphs = []
         documentAudio = []
+        currentDocument = nil
         transcriptionService.transcription = ""
         transcriptionService.errorMessage = nil
         recorder.startMonitoring()

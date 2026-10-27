@@ -21,8 +21,10 @@ struct EarlierRecording: Identifiable, Hashable {
 
     /// Every take on this phone, newest first.
     static func all() -> [EarlierRecording] {
-        let folder = FileManager.default.temporaryDirectory
-        let names = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])) ?? []
+        // The temporary folder, plus takes kept with a saved document (SavedDocuments.swift).
+        let names = [FileManager.default.temporaryDirectory, TranscriptStore.recordings].flatMap {
+            (try? FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [.creationDateKey])) ?? []
+        }
         return names
             .filter { $0.lastPathComponent.hasPrefix("TranscriptionKeeper-") && $0.pathExtension == "m4a" }
             .map { EarlierRecording(url: $0, made: (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast) }
