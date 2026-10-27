@@ -13,6 +13,11 @@ struct ContentView: View {
     @State private var hasPermission = false
     @State private var showingPermissionAlert = false
     @State private var showingAbout = false
+    /// The document being built, one paragraph per take, and the takes still waiting to be transcribed.
+    @State private var documentParagraphs: [String] = []
+    @State private var documentAudio: [URL] = []
+    @State private var takeQueue: [URL] = []
+    @State private var queueRunning = false
     /// Takes still on this phone — the way back to one that never transcribed (EarlierRecordingsView).
     @State private var earlierCount = 0
     @State private var showingEarlier = false
@@ -105,12 +110,11 @@ struct ContentView: View {
             statusRow
 
             // Show results or recording UI
-            if transcriptionService.isTranscribing {
-                transcribingPanel
-            } else if showingResults {
+            if showingResults {
                 resultsView
             } else {
                 recordingView
+                documentStrip
             }
 
             errorText
@@ -169,11 +173,7 @@ struct ContentView: View {
     /// Transcribes an earlier take exactly as a new one is — same path, same results screen.
     private func transcribeEarlier(_ url: URL) {
         showingResults = false
-        lastRecordingURL = url
-        Task {
-            await transcribeAndSeparate(url: url)
-            showingResults = true
-        }
+        enqueue(url)
     }
 
     @ViewBuilder
@@ -329,9 +329,7 @@ struct ContentView: View {
     /// record button.
     private var stripCenterColumn: some View {
         VStack(spacing: 20) {
-            if transcriptionService.isTranscribing {
-                transcribingPanel
-            } else if showingResults {
+            if showingResults {
                 resultsView
                 errorText
             } else {
@@ -343,6 +341,7 @@ struct ContentView: View {
                 }
                 statusRow
                 durationDisplay
+                documentStrip
                 errorText
                 Spacer(minLength: 0)
                 heroImage
@@ -354,37 +353,64 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Hidden while transcribing — a second press then started a new take and the first never transcribed (his
-    /// report, 2026-10-27). The record button comes back with the transcript.
-    private var showsRecordControls: Bool {
-        !showingResults && !transcriptionService.isTranscribing
+    private var showsRecordControls: Bool { !showingResults }
+
+    // REM  ONE DOCUMENT, MANY TAKES — HIS DESIGN 2026-10-27: "you stop but you want to record a moment after you stop
+    // REM  because you want to record separate paragraphs of the same book report" · "you want to share the whole book
+    // REM  report". So Record stays live after Stop; each take joins a queue and is transcribed in order, and each becomes
+    // REM  its own paragraph of one document. Share sends the whole document; New Document starts fresh.
+    // REM  And from his testers' report the same day ("didnt look obvious it was transcribing"): the strip says so in
+    // REM  words, with progress, and that the phone can be locked (the background task in TranscriptionService).
+    // REM  ⚠️ THE STRIP IS ALWAYS IN THE LAYOUT, FIXED HEIGHT — like the counter, so nothing moves under a held button.
+    private var documentStrip: some View {
+        VStack(spacing: 8) {
+            if queueRunning {
+                Text(takeQueue.count > 1
+                     ? "Transcribing paragraph \(documentParagraphs.count + 1) · \(takeQueue.count - 1) waiting"
+                     : "Transcribing paragraph \(documentParagraphs.count + 1)")
+                    .font(.system(size: 20, weight: .semibold))
+                ProgressView(value: transcriptionService.progress)
+                    .tint(.red)
+                    .padding(.horizontal, 24)
+                Text("You can keep recording, lock your iPhone, or switch apps.")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+            } else if !documentParagraphs.isEmpty && !recorder.isSessionActive {
+                Button { showingResults = true } label: {
+                    Label(documentParagraphs.count == 1 ? "View Document · 1 paragraph" : "View Document · \(documentParagraphs.count) paragraphs",
+                          systemImage: "doc.text")
+                        .font(.system(size: 20, weight: .semibold))
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .frame(height: 110)
+        .frame(maxWidth: .infinity)
     }
 
-    // REM  TRANSCRIBING, SHOWN BIG — his report 2026-10-27: after Stop "it looked like it wasnt doing anything so i pressed
-    // REM  the red button again". The panel takes the record controls' place, so there is nothing to press twice, and it
-    // REM  says the phone can be locked: the background task keeps it going (TranscriptionService).
-    private var transcribingPanel: some View {
-        VStack(spacing: 14) {
-            Text("Transcribing")
-                .font(.system(size: 30, weight: .bold))
-            ProgressView(value: transcriptionService.progress)
-                .progressViewStyle(.linear)
-                .tint(.red)
-                .scaleEffect(x: 1, y: 3)
-                .padding(.horizontal, 24)
-            if transcriptionService.audioLength > 0 {
-                Text("\(formatDuration(transcriptionService.progress * transcriptionService.audioLength)) of \(formatDuration(transcriptionService.audioLength))")
-                    .font(.system(size: 20))
-                    .monospacedDigit()
+    /// A finished take joins the queue. Record stays live; the queue transcribes one take at a time, in order.
+    private func enqueue(_ url: URL) {
+        lastRecordingURL = url
+        documentAudio.append(url)
+        takeQueue.append(url)
+        recorder.startMonitoring()
+        guard !queueRunning else { return }
+        queueRunning = true
+        Task {
+            while let next = takeQueue.first {
+                await transcribeAndSeparate(url: next)
+                let text = transcriptionService.transcription.trimmingCharacters(in: .whitespacesAndNewlines)
+                if transcriptionService.errorMessage == nil, !text.isEmpty, text != "(No speech detected)" {
+                    documentParagraphs.append(text)
+                }
+                takeQueue.removeFirst()
             }
-            Text("You can lock your iPhone or switch apps. It keeps going, and the text is here when you come back.")
-                .font(.system(size: 18))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
+            transcriptionService.transcription = documentParagraphs.joined(separator: "\n\n")
+            queueRunning = false
         }
-        .padding(.vertical, 24)
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -433,9 +459,7 @@ struct ContentView: View {
     /// Shorter screens keep the sixth; 400 cannot fit sideways on the front screen (466).
     private func wideCenterColumn(screenHeight: CGFloat) -> some View {
         VStack(spacing: 20) {
-            if transcriptionService.isTranscribing {
-                transcribingPanel
-            } else if showingResults {
+            if showingResults {
                 resultsView
             } else {
                 if usePushToTalk {
@@ -446,6 +470,7 @@ struct ContentView: View {
                 }
                 statusRow
                 durationDisplay
+                documentStrip
             }
 
             errorText
@@ -539,10 +564,12 @@ struct ContentView: View {
             Text("Please enable microphone access in Settings to record audio.")
         }
         .sheet(isPresented: $showingShareText) {
-            ShareSheet(items: [transcriptionService.transcription])
+            ShareSheet(items: [documentParagraphs.joined(separator: "\n\n")])
         }
         .sheet(isPresented: $showingShareAudio) {
-            if let url = lastRecordingURL {
+            if !documentAudio.isEmpty {
+                ShareSheet(items: documentAudio)
+            } else if let url = lastRecordingURL {
                 ShareSheet(items: [url])
             }
         }
@@ -871,11 +898,7 @@ struct ContentView: View {
             return
         }
 
-        lastRecordingURL = url
-        Task {
-            await transcribeAndSeparate(url: url)
-            showingResults = true
-        }
+        enqueue(url)
     }
 
     /// How many people are about to talk.
@@ -1024,7 +1047,7 @@ struct ContentView: View {
                     .font(.headline)
 
                 ScrollView {
-                    Text(transcriptionService.transcription)
+                    Text(documentParagraphs.joined(separator: "\n\n"))
                         .font(.body)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -1054,12 +1077,21 @@ struct ContentView: View {
             .padding(.horizontal)
 
             // New recording button
+            Button { showingResults = false } label: {
+                Label("Record Next Paragraph", systemImage: "mic.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .padding(.horizontal)
+
             Button(action: startNewRecording) {
-                Label("New Recording", systemImage: "mic.fill")
+                Label("New Document", systemImage: "doc.badge.plus")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .padding(.horizontal)
+            .disabled(queueRunning)
 
             Spacer()
         }
@@ -1081,13 +1113,7 @@ struct ContentView: View {
             if let url = recorder.stopRecording() {
                 print("Recording saved to: \(url)")
                 print("Captured \(recorder.capturedDuration)s of \(recorder.sessionDuration)s session")
-                lastRecordingURL = url
-
-                // Start transcription
-                Task {
-                    await transcribeAndSeparate(url: url)
-                    showingResults = true
-                }
+                enqueue(url)
             } else {
                 print("No audio captured")
                 recorder.startMonitoring()
@@ -1100,6 +1126,8 @@ struct ContentView: View {
 
     private func startNewRecording() {
         showingResults = false
+        documentParagraphs = []
+        documentAudio = []
         transcriptionService.transcription = ""
         transcriptionService.errorMessage = nil
         recorder.startMonitoring()
