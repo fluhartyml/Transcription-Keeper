@@ -13,6 +13,9 @@ struct ContentView: View {
     @State private var hasPermission = false
     @State private var showingPermissionAlert = false
     @State private var showingAbout = false
+    /// Takes still on this phone — the way back to one that never transcribed (EarlierRecordingsView).
+    @State private var earlierCount = 0
+    @State private var showingEarlier = false
 
     // Results state
     @State private var lastRecordingURL: URL?
@@ -109,6 +112,8 @@ struct ContentView: View {
             }
 
             errorText
+
+            earlierButton
         }
         .padding()
     }
@@ -145,6 +150,28 @@ struct ContentView: View {
             .fontWeight(.bold)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
+    }
+
+    /// Shown only when takes are on this phone and none is being recorded, so nothing moves while a button is held.
+    @ViewBuilder
+    private var earlierButton: some View {
+        if earlierCount > 0 && !recorder.isSessionActive && !transcriptionService.isTranscribing {
+            Button { showingEarlier = true } label: {
+                Label("Earlier Recordings (\(earlierCount))", systemImage: "clock.arrow.circlepath")
+                    .font(.system(size: 18))
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    /// Transcribes an earlier take exactly as a new one is — same path, same results screen.
+    private func transcribeEarlier(_ url: URL) {
+        showingResults = false
+        lastRecordingURL = url
+        Task {
+            await transcribeAndSeparate(url: url)
+            showingResults = true
+        }
     }
 
     @ViewBuilder
@@ -388,6 +415,8 @@ struct ContentView: View {
 
             errorText
 
+            earlierButton
+
             // His, 2026-10-26: sideways matches upright — hero, then the title under it.
             heroImage(size: screenHeight >= 900 ? 400 : screenHeight / 6)
             titleText
@@ -485,6 +514,10 @@ struct ContentView: View {
         .sheet(isPresented: $showingAbout) {
             AboutView()
         }
+        .sheet(isPresented: $showingEarlier, onDismiss: { earlierCount = EarlierRecording.all().count }) {
+            EarlierRecordingsView(transcribe: transcribeEarlier)
+        }
+        .onChange(of: recorder.isSessionActive, initial: true) { earlierCount = EarlierRecording.all().count }
         // His report, 2026-09-08: "the (i) is too small and squished under the battery."
         // Then, after more padding: "top of the (i) circle is under the battery."
         //
