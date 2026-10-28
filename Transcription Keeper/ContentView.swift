@@ -110,6 +110,7 @@ struct ContentView: View {
                 heroImage
                 infoButton
             }
+            .overlay(alignment: .topLeading) { cornerButtons }
 
             titleText
 
@@ -120,7 +121,6 @@ struct ContentView: View {
                 resultsView
             } else {
                 recordingView
-                documentStrip
             }
 
             errorText
@@ -167,8 +167,7 @@ struct ContentView: View {
     private var earlierButton: some View {
         if earlierCount > 0 && !recorder.isSessionActive && !transcriptionService.isTranscribing {
             Button { showingEarlier = true } label: {
-                Label("Earlier Recordings (\(earlierCount))", systemImage: "clock.arrow.circlepath")
-                    .font(.system(size: 18))
+                Label("Earlier (\(earlierCount))", systemImage: "clock.arrow.circlepath")
             }
             .buttonStyle(.bordered)
         }
@@ -366,8 +365,55 @@ struct ContentView: View {
     // REM  And from his testers' report the same day ("didnt look obvious it was transcribing"): the strip says so in
     // REM  words, with progress, and that the phone can be locked (the background task in TranscriptionService).
     // REM  ⚠️ THE STRIP IS ALWAYS IN THE LAYOUT, FIXED HEIGHT — like the counter, so nothing moves under a held button.
+    // REM  THE CORNER — his, 2026-10-27, after "the earlier recordings button is so far down i had to scroll the top is
+    // REM  gone now": Meeting mode already fills an 11 Pro, so any row under the record button scrolls the hero away.
+    // REM  On an upright phone Document · Saved · Earlier sit in the empty corner beside the microphone, opposite the
+    // REM  (i), and the transcribing status takes the place of "Tap to Record". Nothing gets taller.
+    @ViewBuilder
+    private var cornerButtons: some View {
+        if !recorder.isSessionActive {
+            VStack(alignment: .leading, spacing: 4) {
+                if !documentParagraphs.isEmpty && !queueRunning {
+                    Button("Document \(documentParagraphs.count)") { showingResults = true }
+                        .buttonStyle(.borderedProminent)
+                }
+                if savedCount > 0 {
+                    Button("Saved \(savedCount)") { showingSaved = true }
+                        .buttonStyle(.bordered)
+                }
+                if earlierCount > 0 && !queueRunning {
+                    Button("Earlier \(earlierCount)") { showingEarlier = true }
+                        .buttonStyle(.bordered)
+                }
+            }
+            .font(.system(size: 18))
+            .controlSize(.small)
+            .fixedSize()
+        }
+    }
+
+    /// A thin bar under the status line — drawn over the space below it, so it adds no height.
+    @ViewBuilder
+    private var transcribingBar: some View {
+        if transcribingLine != nil {
+            ProgressView(value: transcriptionService.progress)
+                .tint(.red)
+                .frame(width: 160)
+                .offset(y: 8)
+        }
+    }
+
+    /// While a take transcribes, the words under the record button say so — same line, same height.
+    private var transcribingLine: String? {
+        guard queueRunning, !recorder.isSessionActive else { return nil }
+        let length = transcriptionService.audioLength
+        let place = takeQueue.count > 1 ? " · \(takeQueue.count - 1) waiting" : ""
+        guard length > 0 else { return "Transcribing…" + place }
+        return "Transcribing \(formatDuration(transcriptionService.progress * length)) of \(formatDuration(length))" + place
+    }
+
     private var documentStrip: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             if queueRunning {
                 Text(takeQueue.count > 1
                      ? "Transcribing paragraph \(documentParagraphs.count + 1) · \(takeQueue.count - 1) waiting"
@@ -376,35 +422,36 @@ struct ContentView: View {
                 ProgressView(value: transcriptionService.progress)
                     .tint(.red)
                     .padding(.horizontal, 24)
-                Text("You can keep recording, lock your iPhone, or switch apps.")
+                Text("Keep recording, or lock your iPhone.")
                     .font(.system(size: 18))
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .lineLimit(1)
                     .minimumScaleFactor(0.8)
             } else if !recorder.isSessionActive {
-                if !documentParagraphs.isEmpty {
-                    Button { showingResults = true } label: {
-                        Label(documentParagraphs.count == 1 ? "View Document · 1 paragraph" : "View Document · \(documentParagraphs.count) paragraphs",
-                              systemImage: "doc.text")
-                            .font(.system(size: 20, weight: .semibold))
+                // REM  His, 2026-10-27: "earlier recordings should be up closer to the red button" · then "the earlier
+                // REM  recordings button is so far down i had to scroll the top is gone now". So ONE row, pinned to the top
+                // REM  of a shorter strip: Document · Saved · Earlier, short labels so all three fit an iPhone's width.
+                HStack(spacing: 8) {
+                    if !documentParagraphs.isEmpty {
+                        Button { showingResults = true } label: {
+                            Label("Document (\(documentParagraphs.count))", systemImage: "doc.text")
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
-                }
-                // REM  His, 2026-10-27: "earlier recordings should be up closer to the red button" — so it lives in this
-                // REM  strip, right under the controls, instead of at the bottom of the screen. Saved Documents beside it.
-                HStack(spacing: 10) {
                     if savedCount > 0 {
                         Button { showingSaved = true } label: {
-                            Label("Saved (\(savedCount))", systemImage: "folder").font(.system(size: 18))
+                            Label("Saved (\(savedCount))", systemImage: "folder")
                         }
                         .buttonStyle(.bordered)
                     }
                     earlierButton
                 }
+                .font(.system(size: 18))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             }
         }
-        .frame(height: 110)
+        .frame(height: 72, alignment: .top)
         .frame(maxWidth: .infinity)
     }
 
@@ -852,12 +899,14 @@ struct ContentView: View {
     }
 
     private func pushToTalkText(narrow: Bool) -> some View {
-        Text(pushToTalkLabel)
+        Text(transcribingLine ?? pushToTalkLabel)
             .font(narrow ? .caption2 : .caption)
+            .fontWeight(transcribingLine == nil ? .regular : .semibold)
             .multilineTextAlignment(.center)
             .lineLimit(narrow ? 2 : 1)
-            .foregroundStyle(willCancel ? Color.red : Color.secondary)
+            .foregroundStyle(willCancel || transcribingLine != nil ? Color.red : Color.secondary)
             .frame(height: narrow ? 30 : 18)
+            .overlay(alignment: .bottom) { transcribingBar }
             .animation(.easeInOut(duration: 0.15), value: willCancel)
     }
 
@@ -1109,12 +1158,14 @@ struct ContentView: View {
     }
 
     private func classicRecordText(narrow: Bool) -> some View {
-        Text(recorder.isSessionActive ? "Tap to Stop" : "Tap to Record")
+        Text(transcribingLine ?? (recorder.isSessionActive ? "Tap to Stop" : "Tap to Record"))
             .font(narrow ? .caption2 : .caption)
+            .fontWeight(transcribingLine == nil ? .regular : .semibold)
             .multilineTextAlignment(.center)
             .lineLimit(narrow ? 2 : 1)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(transcribingLine == nil ? Color.secondary : Color.red)
             .frame(height: narrow ? 30 : nil)
+            .overlay(alignment: .bottom) { transcribingBar }
     }
 
     // MARK: - Results View
