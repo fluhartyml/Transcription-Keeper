@@ -91,7 +91,10 @@ struct ContentView: View {
     @State private var showingShareAudio = false
 
     private var mainColumn: some View {
-        VStack(spacing: 24) {
+        // REM  12, not 24. His report, 2026-10-28, on the 11 Pro: "everything is too spread out."
+        // REM  At 24 the Meeting column ran taller than the screen, fell into the scroll view,
+        // REM  and the hero and corner buttons sat scrolled off the top. Tighter gaps let it fit.
+        VStack(spacing: 12) {
             // Title
             // ⛔ THE (i) LIVES BESIDE THE HERO, NOT AT THE TOP OF THE SCREEN.
             //
@@ -843,7 +846,7 @@ struct ContentView: View {
     }
 
     private var pushToTalkRecordingView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 12) {
             Spacer()
 
             pushToTalkMeter
@@ -1062,7 +1065,7 @@ struct ContentView: View {
     }
 
     private var classicRecordingView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 12) {
             Spacer()
 
             classicMeter
@@ -1129,7 +1132,7 @@ struct ContentView: View {
     private var classicRecordControl: some View { classicRecordControl(diameter: 80) }
 
     private func classicRecordControl(diameter: CGFloat, narrow: Bool = false) -> some View {
-        VStack(spacing: narrow ? 12 : 24) {
+        VStack(spacing: 12) {
             if narrow { classicRecordText(narrow: true) }
 
             // Record Button
